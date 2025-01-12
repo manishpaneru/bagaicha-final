@@ -34,13 +34,17 @@ class BillWindow(ctk.CTkToplevel):
         self.subtotal = 0.0
         self.total = 0.0
         
-        # Load menu items
-        self.load_menu_items()
+        # Initialize category menu variable
+        self.category_menu = None
+        self.selected_category = ctk.StringVar(value="All Categories")
         
-        # Setup UI
+        # Setup UI first
         self.setup_ui()
         
-        # Load existing bill if any
+        # Then load menu items
+        self.load_menu_items()
+        
+        # Finally load existing bill if any
         self.load_existing_bill()
     
     def setup_ui(self):

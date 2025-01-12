@@ -12,8 +12,12 @@ from sqlite3 import Error
 class DatabaseManager:
     """Manages database operations for the cafe management system."""
     
-    def __init__(self):
+    def __init__(self, db_file="cafe_manager.db"):
         """Initialize database manager."""
+        # Get absolute path to database in root directory
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.db_path = os.path.join(root_dir, db_file)
+        print(f"Connecting to database at: {self.db_path}")
         self.conn = None
         self.setup_logging()
     
@@ -31,11 +35,19 @@ class DatabaseManager:
     def connect(self):
         """Create a database connection."""
         try:
-            self.conn = sqlite3.connect('cafe_manager.db')
-            logging.info("Successfully connected to database")
+            if not os.path.exists(self.db_path):
+                print(f"Database not found at: {self.db_path}")
+                # Run initialization if database doesn't exist
+                from initialize_db import initialize_database
+                initialize_database()
+                
+            self.conn = sqlite3.connect(self.db_path)
+            self.conn.execute("PRAGMA foreign_keys = ON")
+            logging.info(f"Successfully connected to database at {self.db_path}")
             return self.conn
         except Error as e:
             logging.error(f"Error connecting to database: {str(e)}")
+            print(f"Database connection error: {e}")
             return None
     
     def create_tables(self):
