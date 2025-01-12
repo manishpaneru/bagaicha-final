@@ -317,7 +317,42 @@ class AddBarExpenseDialog(ctk.CTkToplevel):
             try:
                 cursor.execute("BEGIN")
                 
-                # Save to expenses table
+                # Check if item exists in bar_stock
+                cursor.execute("""
+                    SELECT id, quantity, original_quantity 
+                    FROM bar_stock 
+                    WHERE item_name = ? AND unit_type = 'ML'
+                """, (name,))
+                
+                existing_item = cursor.fetchone()
+                
+                if existing_item:
+                    # Update existing stock
+                    stock_id, current_qty, original_qty = existing_item
+                    new_qty = current_qty + quantity
+                    new_original = original_qty + quantity
+                    
+                    cursor.execute("""
+                        UPDATE bar_stock 
+                        SET quantity = ?,
+                            original_quantity = ?,
+                            min_threshold = ?,
+                            last_updated = DATETIME('now', 'localtime')
+                        WHERE id = ?
+                    """, (new_qty, new_original, new_original * 0.2, stock_id))
+                else:
+                    # Add new item
+                    cursor.execute("""
+                        INSERT INTO bar_stock (
+                            item_name, unit_type, quantity, 
+                            original_quantity, min_threshold,
+                            last_updated
+                        ) VALUES (?, 'ML', ?, ?, ?, DATETIME('now', 'localtime'))
+                    """, (name, quantity, quantity, quantity * 0.2))
+                    
+                    stock_id = cursor.lastrowid
+                
+                # Add expense record
                 cursor.execute("""
                     INSERT INTO expenses (
                         name, title, category, quantity,
@@ -329,27 +364,8 @@ class AddBarExpenseDialog(ctk.CTkToplevel):
                     "Bar",
                     quantity,
                     cost/quantity,  # Price per ML
-                    cost,
+                    cost
                 ))
-                
-                # Update bar stock
-                cursor.execute("""
-                    INSERT OR REPLACE INTO bar_stock (
-                        item_name, unit_type, quantity, original_quantity,
-                        min_threshold, last_updated
-                    ) VALUES (
-                        ?, 'ML',
-                        COALESCE((SELECT quantity FROM bar_stock WHERE item_name = ?) + ?, ?),
-                        ?, ?, DATETIME('now', 'localtime')
-                    )
-                """, (
-                    name, name, quantity, quantity,
-                    quantity, quantity * 0.2  # 20% threshold
-                ))
-                
-                # Get the bar_stock id
-                cursor.execute("SELECT id FROM bar_stock WHERE item_name = ?", (name,))
-                bar_id = cursor.fetchone()[0]
                 
                 # Record in history
                 cursor.execute("""
@@ -357,10 +373,10 @@ class AddBarExpenseDialog(ctk.CTkToplevel):
                         item_id, change_quantity, operation_type,
                         source, created_at
                     ) VALUES (?, ?, 'add', 'expense', DATETIME('now', 'localtime'))
-                """, (bar_id, quantity))
+                """, (stock_id, quantity))
                 
                 conn.commit()
-                messagebox.showinfo("Success", "Bar expense added successfully!")
+                messagebox.showinfo("Success", f"Added {quantity}ML of {name}")
                 
                 if hasattr(self.parent, 'load_expenses'):
                     self.parent.load_expenses()
@@ -396,83 +412,126 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
         self.geometry("400x500")
         self.resizable(False, False)
         
+        # Initialize variables
+        self.cigarette_var = ctk.StringVar()
+        self.cigarettes = []  # Store cigarette data
         self.setup_ui()
         self.center_window()
     
     def setup_ui(self):
-        # Main container
         main_frame = ctk.CTkFrame(self)
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Title
         ctk.CTkLabel(
             main_frame,
-            text="Add Cigarette Expense",
+            text="Add Cigarette Stock",
             font=("Helvetica", 20, "bold")
         ).pack(pady=(0, 20))
         
-        # Brand Name
-        ctk.CTkLabel(main_frame, text="Brand Name:").pack(anchor="w", pady=(10,0))
-        self.name_entry = ctk.CTkEntry(main_frame, width=300)
-        self.name_entry.pack(pady=(0, 15))
+        # Cigarette Selection
+        ctk.CTkLabel(main_frame, text="Select Cigarette:").pack(anchor="w", pady=(10,0))
+        
+        # Get available cigarettes from menu_items
+        try:
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT mi.name, mi.price 
+                FROM menu_items mi 
+                JOIN menu_categories mc ON mi.category_id = mc.id 
+                WHERE mc.name = 'Cigarette' 
+                ORDER BY mi.name
+            """)
+            self.cigarettes = cursor.fetchall()
+            
+            if not self.cigarettes:
+                print("No cigarette items found in the database")
+            else:
+                print(f"Found {len(self.cigarettes)} cigarette items:", self.cigarettes)
+                
+        except Exception as e:
+            print(f"Error fetching cigarette items: {str(e)}")
+            self.cigarettes = []
+        finally:
+            if conn:
+                conn.close()
+        
+        # Create dropdown for cigarette selection
+        cigarette_options = [f"{name} (₹{price}/piece)" for name, price in self.cigarettes]
+        if cigarette_options:
+            self.cigarette_dropdown = ctk.CTkOptionMenu(
+                main_frame,
+                values=cigarette_options,
+                width=300,
+                command=self.on_cigarette_select
+            )
+            self.cigarette_dropdown.pack(pady=(5, 15))
+            
+            # Set default selection
+            self.cigarette_dropdown.set(cigarette_options[0])
+            self.cigarette_var.set(self.cigarettes[0][0])  # Store the actual name
+        else:
+            ctk.CTkLabel(
+                main_frame,
+                text="No cigarette items found in database.\nPlease check initialization.",
+                text_color="red"
+            ).pack(pady=(5, 15))
         
         # Quantity (Packets)
-        ctk.CTkLabel(main_frame, text="Quantity (Packets):").pack(anchor="w", pady=(10,0))
+        ctk.CTkLabel(main_frame, text="Number of Packets:").pack(anchor="w", pady=(20,0))
         self.quantity_entry = ctk.CTkEntry(main_frame, width=300)
-        self.quantity_entry.pack(pady=(0, 15))
+        self.quantity_entry.pack(pady=(5,15))
         
-        # Total Cost
-        ctk.CTkLabel(main_frame, text="Total Cost (₹):").pack(anchor="w", pady=(10,0))
+        # Cost
+        ctk.CTkLabel(main_frame, text="Total Cost:").pack(anchor="w", pady=(10,0))
         self.cost_entry = ctk.CTkEntry(main_frame, width=300)
-        self.cost_entry.pack(pady=(0, 20))
+        self.cost_entry.pack(pady=(5,15))
         
-        # Info Label
+        # Info label
         ctk.CTkLabel(
             main_frame,
-            text="(1 packet = 20 pieces)",
+            text="1 packet = 20 pieces",
             text_color="gray"
-        ).pack(pady=(0, 20))
+        ).pack(pady=(0,20))
         
-        # Buttons Frame
+        # Buttons
         buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         buttons_frame.pack(fill="x", pady=20)
         
-        # Save Button
         ctk.CTkButton(
             buttons_frame,
-            text="Save Cigarette Expense",
+            text="Save",
             command=self.save_expense,
-            fg_color="#10B981",
-            hover_color="#059669",
             width=140,
-            height=40
+            fg_color="#10B981",
+            hover_color="#059669"
         ).pack(side="left", padx=10, expand=True)
         
-        # Cancel Button
         ctk.CTkButton(
             buttons_frame,
             text="Cancel",
             command=self.destroy,
-            fg_color="#EF4444",
-            hover_color="#DC2626",
             width=140,
-            height=40
+            fg_color="#EF4444",
+            hover_color="#DC2626"
         ).pack(side="right", padx=10, expand=True)
     
+    def on_cigarette_select(self, choice):
+        # Extract cigarette name from the selection (remove price part)
+        name = choice.split(" (")[0]
+        self.cigarette_var.set(name)
+        
     def save_expense(self):
         try:
-            # Get and validate inputs
-            name = self.name_entry.get().strip()
-            packets = self.quantity_entry.get().strip()
-            cost = self.cost_entry.get().strip()
-            
-            if not all([name, packets, cost]):
-                messagebox.showerror("Error", "Please fill all fields")
+            name = self.cigarette_var.get()
+            if not name:
+                messagebox.showerror("Error", "Please select a cigarette type")
                 return
-            
+                
             try:
-                packets = int(packets)    # Number of packets user is adding
-                cost = float(cost)
+                packets = int(self.quantity_entry.get())
+                cost = float(self.cost_entry.get())
                 if packets <= 0 or cost <= 0:
                     raise ValueError()
             except ValueError:
@@ -485,7 +544,57 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
             try:
                 cursor.execute("BEGIN")
                 
-                # Store quantity as packets directly (not converting to pieces)
+                # Get price per piece from menu_items
+                cursor.execute("""
+                    SELECT price 
+                    FROM menu_items mi 
+                    JOIN menu_categories mc ON mi.category_id = mc.id 
+                    WHERE mi.name = ? AND mc.name = 'Cigarette'
+                """, (name,))
+                
+                result = cursor.fetchone()
+                if not result:
+                    raise Exception("Cigarette price not found")
+                
+                price_per_piece = result[0]
+                price_per_packet = price_per_piece * 20  # Each packet has 20 pieces
+                
+                # Check if cigarette exists in stock
+                cursor.execute("""
+                    SELECT id, quantity, original_quantity 
+                    FROM bar_stock 
+                    WHERE item_name = ? AND unit_type = 'PACKET'
+                """, (name,))
+                
+                existing_item = cursor.fetchone()
+                
+                if existing_item:
+                    # Update existing stock
+                    stock_id, current_qty, original_qty = existing_item
+                    new_qty = current_qty + packets
+                    new_original = original_qty + packets
+                    
+                    cursor.execute("""
+                        UPDATE bar_stock 
+                        SET quantity = ?,
+                            original_quantity = ?,
+                            min_threshold = ?,
+                            last_updated = DATETIME('now', 'localtime')
+                        WHERE id = ?
+                    """, (new_qty, new_original, max(2, new_original * 0.2), stock_id))
+                else:
+                    # Add new item
+                    cursor.execute("""
+                        INSERT INTO bar_stock (
+                            item_name, unit_type, pieces_per_packet,
+                            quantity, original_quantity, min_threshold,
+                            last_updated
+                        ) VALUES (?, 'PACKET', 20, ?, ?, ?, DATETIME('now', 'localtime'))
+                    """, (name, packets, packets, max(2, packets * 0.2)))
+                    
+                    stock_id = cursor.lastrowid
+                
+                # Add expense record
                 cursor.execute("""
                     INSERT INTO expenses (
                         name, title, category, quantity,
@@ -496,40 +605,25 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
                     f"{name} ({packets} packets - {packets * 20} pieces)",
                     "Cigarette",
                     packets,         # Store actual number of packets
-                    cost/packets,    # Price per packet
+                    price_per_packet,    # Price per packet (20 pieces)
                     cost
                 ))
                 
-                # Update bar stock - store as packets
-                cursor.execute("""
-                    INSERT OR REPLACE INTO bar_stock (
-                        item_name, unit_type, pieces_per_packet,
-                        quantity, original_quantity, min_threshold,
-                        last_updated
-                    ) VALUES (
-                        ?, 'PACKET', 20,
-                        COALESCE((SELECT quantity FROM bar_stock WHERE item_name = ?) + ?, ?),
-                        ?, ?, DATETIME('now', 'localtime')
-                    )
-                """, (
-                    name, name, packets, packets,
-                    packets, max(1, packets * 0.2)  # 20% threshold, minimum 1 packet
-                ))
-                
-                # Get the bar_stock id
-                cursor.execute("SELECT id FROM bar_stock WHERE item_name = ?", (name,))
-                bar_id = cursor.fetchone()[0]
-                
-                # Record in history (in packets)
+                # Record in history
                 cursor.execute("""
                     INSERT INTO stock_history (
                         item_id, change_quantity, operation_type,
                         source, created_at
                     ) VALUES (?, ?, 'add', 'expense', DATETIME('now', 'localtime'))
-                """, (bar_id, packets))
+                """, (stock_id, packets))
                 
                 conn.commit()
-                messagebox.showinfo("Success", f"Added {packets} packets ({packets * 20} pieces)")
+                messagebox.showinfo(
+                    "Success", 
+                    f"Added {packets} packets ({packets * 20} pieces)\n" +
+                    f"Price per packet: ₹{price_per_packet:.2f}\n" +
+                    f"Total cost: ₹{cost:.2f}"
+                )
                 
                 if hasattr(self.parent, 'load_expenses'):
                     self.parent.load_expenses()

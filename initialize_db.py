@@ -98,8 +98,8 @@ def initialize_database():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     item_id INTEGER NOT NULL,
                     change_quantity REAL NOT NULL,
-                    operation_type TEXT CHECK(operation_type IN ('add', 'remove')),
-                    source TEXT NOT NULL,  -- 'sale' or 'expense'
+                    operation_type TEXT CHECK(operation_type IN ('add', 'remove')) NOT NULL,
+                    source TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (item_id) REFERENCES bar_stock (id)
                 )
@@ -217,6 +217,28 @@ def initialize_database():
             # Get category IDs
             cursor.execute("SELECT id, name FROM menu_categories")
             category_ids = {name: id for id, name in cursor.fetchall()}
+
+            # Remove existing cigarette items and category
+            cursor.execute("DELETE FROM menu_categories WHERE name = 'Cigarette'")
+            
+            # Add cigarette category
+            cursor.execute("INSERT INTO menu_categories (name) VALUES ('Cigarette')")
+            cursor.execute("SELECT id FROM menu_categories WHERE name = 'Cigarette'")
+            cigarette_category_id = cursor.fetchone()[0]
+
+            # Add predefined cigarette items
+            cigarette_items = [
+                ("Surya Red", cigarette_category_id, 30),      # Rs 30 per piece
+                ("Surya Artic", cigarette_category_id, 35),    # Rs 35 per piece
+                ("Sikhar Ice", cigarette_category_id, 25)      # Rs 25 per piece
+            ]
+
+            for name, category_id, price in cigarette_items:
+                cursor.execute("""
+                    INSERT INTO menu_items (name, category_id, price)
+                    VALUES (?, ?, ?)
+                """, (name, category_id, price))
+            print("- Inserted predefined cigarette items")
 
             # Food items
             food_items = [
