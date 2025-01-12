@@ -1,0 +1,197 @@
+2025-01-11 20:26:20,152:INFO:Successfully connected to the database
+2025-01-11 20:26:20,207:INFO:Successfully created all tables
+2025-01-11 20:26:20,213:INFO:Successfully inserted default data
+2025-01-11 20:26:20,213:INFO:Database connection closed
+2025-01-11 20:39:30,848:INFO:Successfully connected to the database
+2025-01-11 20:39:30,853:INFO:Database connection closed
+2025-01-11 20:39:41,946:INFO:Database connection closed
+2025-01-11 20:39:46,424:INFO:Database connection closed
+2025-01-11 20:39:47,989:INFO:Database connection closed
+2025-01-11 20:39:49,316:INFO:Database connection closed
+2025-01-11 20:39:50,002:INFO:Database connection closed
+2025-01-11 20:39:51,831:INFO:Database connection closed
+2025-01-11 20:39:53,895:INFO:Database connection closed
+2025-01-11 20:39:54,658:INFO:Database connection closed
+2025-01-11 20:39:55,917:INFO:Database connection closed
+2025-01-11 20:39:56,768:INFO:Database connection closed
+2025-01-11 20:39:59,490:INFO:Database connection closed
+2025-01-11 20:40:16,441:INFO:Database connection closed
+2025-01-11 20:40:21,149:INFO:Database connection closed
+2025-01-11 20:57:36,946:INFO:Successfully connected to the database
+2025-01-11 21:04:04,631:INFO:Successfully connected to the database
+2025-01-11 21:22:10,641:INFO:Successfully connected to the database
+2025-01-11 21:22:10,733:INFO:Successfully connected to the database
+2025-01-11 21:22:10,735:INFO:Successfully connected to the database
+2025-01-11 21:22:10,737:INFO:Successfully connected to the database
+2025-01-11 21:22:10,828:INFO:Successfully connected to the database
+2025-01-11 21:22:10,830:INFO:Successfully connected to the database
+2025-01-11 21:22:10,831:INFO:Successfully connected to the database
+2025-01-11 21:22:13,023:INFO:Successfully connected to the database
+2025-01-11 21:22:13,047:INFO:Successfully connected to the database
+2025-01-11 21:22:14,633:INFO:Successfully connected to the database
+2025-01-11 21:22:43,096:INFO:Successfully connected to the database
+2025-01-11 21:27:30,947:INFO:Successfully connected to the database
+2025-01-11 21:27:31,061:INFO:Successfully connected to the database
+2025-01-11 21:27:31,062:INFO:Successfully connected to the database
+2025-01-11 21:27:31,064:INFO:Successfully connected to the database
+2025-01-11 21:27:31,147:INFO:Successfully connected to the database
+2025-01-11 21:27:31,148:INFO:Successfully connected to the database
+2025-01-11 21:27:31,150:INFO:Successfully connected to the database
+2025-01-11 21:27:33,347:INFO:Successfully connected to the database
+2025-01-11 21:27:33,373:INFO:Successfully connected to the database
+2025-01-11 21:27:34,970:INFO:Successfully connected to the database
+2025-01-11 21:27:50,571:INFO:Successfully connected to the database
+2025-01-11 21:30:07,819:INFO:Successfully connected to the database
+2025-01-11 21:30:07,840:INFO:Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:30:07,841:INFO:Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:30:08,015:INFO:Successfully connected to the database
+2025-01-11 21:30:08,018:INFO:Successfully connected to the database
+2025-01-11 21:30:08,019:INFO:Successfully connected to the database
+2025-01-11 21:30:08,028:INFO:Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:30:08,028:INFO:Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:30:08,107:INFO:Successfully connected to the database
+2025-01-11 21:30:08,108:INFO:Successfully connected to the database
+2025-01-11 21:30:08,110:INFO:Successfully connected to the database
+2025-01-11 21:30:10,191:INFO:Successfully connected to the database
+2025-01-11 21:30:10,215:INFO:Successfully connected to the database
+2025-01-11 21:30:12,206:INFO:Successfully connected to the database
+2025-01-11 21:36:29,770:INFO:Successfully connected to the database
+2025-01-11 21:36:29,776:INFO:Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:36:29,776:INFO:Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:36:29,886:INFO:Successfully connected to the database
+2025-01-11 21:36:29,887:INFO:Successfully connected to the database
+2025-01-11 21:36:29,889:INFO:Successfully connected to the database
+2025-01-11 21:36:29,896:INFO:Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:36:29,896:INFO:Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:36:29,943:INFO:Successfully connected to the database
+2025-01-11 21:36:29,944:INFO:Successfully connected to the database
+2025-01-11 21:36:29,946:INFO:Successfully connected to the database
+2025-01-11 21:39:22,036 - INFO - Successfully connected to database
+2025-01-11 21:39:22,042 - INFO - Database connection closed
+2025-01-11 21:40:13,896 - INFO - Successfully connected to database
+2025-01-11 21:40:13,907 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:40:13,908 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:40:14,011 - INFO - Successfully connected to database
+2025-01-11 21:40:14,014 - INFO - Successfully connected to database
+2025-01-11 21:40:14,018 - INFO - Successfully connected to database
+2025-01-11 21:40:14,040 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:40:14,040 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:40:14,096 - INFO - Successfully connected to database
+2025-01-11 21:40:14,097 - INFO - Successfully connected to database
+2025-01-11 21:40:14,099 - INFO - Successfully connected to database
+2025-01-11 21:42:37,644 - INFO - Successfully connected to database
+2025-01-11 21:42:37,662 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:42:37,663 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:42:37,795 - INFO - Successfully connected to database
+2025-01-11 21:42:37,797 - INFO - Successfully connected to database
+2025-01-11 21:42:37,799 - INFO - Successfully connected to database
+2025-01-11 21:42:37,809 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:42:37,810 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:42:37,870 - INFO - Successfully connected to database
+2025-01-11 21:42:37,872 - INFO - Successfully connected to database
+2025-01-11 21:42:37,874 - INFO - Successfully connected to database
+2025-01-11 21:42:39,909 - INFO - Successfully connected to database
+2025-01-11 21:46:50,942 - INFO - Successfully connected to database
+2025-01-11 21:46:50,948 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:46:50,948 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:46:51,039 - INFO - Successfully connected to database
+2025-01-11 21:46:51,041 - INFO - Successfully connected to database
+2025-01-11 21:46:51,043 - INFO - Successfully connected to database
+2025-01-11 21:46:51,060 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:46:51,060 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-11 21:46:51,142 - INFO - Successfully connected to database
+2025-01-11 21:46:51,143 - INFO - Successfully connected to database
+2025-01-11 21:46:51,144 - INFO - Successfully connected to database
+2025-01-11 21:46:53,460 - INFO - Successfully connected to database
+2025-01-12 08:42:53,926 - INFO - Successfully connected to database
+2025-01-12 09:03:16,367 - INFO - Successfully connected to database
+2025-01-12 09:03:16,441 - INFO - Successfully connected to database
+2025-01-12 09:03:16,442 - INFO - Successfully connected to database
+2025-01-12 09:03:16,443 - INFO - Successfully connected to database
+2025-01-12 09:03:16,483 - INFO - Successfully connected to database
+2025-01-12 09:03:16,484 - INFO - Successfully connected to database
+2025-01-12 09:03:16,485 - INFO - Successfully connected to database
+2025-01-12 09:03:17,941 - INFO - Successfully connected to database
+2025-01-12 09:03:17,942 - INFO - Successfully connected to database
+2025-01-12 09:03:29,626 - INFO - Successfully connected to database
+2025-01-12 09:07:14,474 - INFO - Successfully connected to database
+2025-01-12 09:07:14,532 - INFO - Successfully connected to database
+2025-01-12 09:07:14,534 - INFO - Successfully connected to database
+2025-01-12 09:07:14,535 - INFO - Successfully connected to database
+2025-01-12 09:07:14,594 - INFO - Successfully connected to database
+2025-01-12 09:07:14,596 - INFO - Successfully connected to database
+2025-01-12 09:07:14,597 - INFO - Successfully connected to database
+2025-01-12 09:07:15,979 - INFO - Successfully connected to database
+2025-01-12 09:07:15,980 - INFO - Successfully connected to database
+2025-01-12 09:07:33,764 - INFO - Successfully connected to database
+2025-01-12 09:07:33,773 - INFO - Successfully connected to database
+2025-01-12 09:08:03,460 - INFO - Successfully connected to database
+2025-01-12 09:08:03,472 - INFO - Successfully connected to database
+2025-01-12 09:08:05,292 - INFO - Successfully connected to database
+2025-01-12 09:08:50,762 - INFO - Successfully connected to database
+2025-01-12 09:08:50,807 - INFO - Successfully connected to database
+2025-01-12 09:08:50,808 - INFO - Successfully connected to database
+2025-01-12 09:08:50,809 - INFO - Successfully connected to database
+2025-01-12 09:08:50,854 - INFO - Successfully connected to database
+2025-01-12 09:08:50,855 - INFO - Successfully connected to database
+2025-01-12 09:08:59,350 - INFO - Successfully connected to database
+2025-01-12 09:08:59,365 - INFO - Successfully connected to database
+2025-01-12 09:09:00,701 - INFO - Successfully connected to database
+2025-01-12 09:09:09,448 - INFO - Successfully connected to database
+2025-01-12 09:15:19,367 - INFO - Successfully connected to database
+2025-01-12 09:15:19,375 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-12 09:15:19,376 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-12 09:15:19,432 - INFO - Successfully connected to database
+2025-01-12 09:15:19,434 - INFO - Successfully connected to database
+2025-01-12 09:15:19,435 - INFO - Successfully connected to database
+2025-01-12 09:15:19,441 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-12 09:15:19,441 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-12 09:15:19,477 - INFO - Successfully connected to database
+2025-01-12 09:15:19,479 - INFO - Successfully connected to database
+2025-01-12 09:15:19,481 - INFO - Successfully connected to database
+2025-01-12 09:15:23,039 - INFO - Successfully connected to database
+2025-01-12 09:15:23,039 - INFO - Successfully connected to database
+2025-01-12 09:15:25,272 - INFO - Successfully connected to database
+2025-01-12 09:15:27,798 - INFO - Successfully connected to database
+2025-01-12 09:15:29,065 - INFO - Successfully connected to database
+2025-01-12 09:15:29,080 - INFO - Successfully connected to database
+2025-01-12 09:15:30,389 - INFO - Successfully connected to database
+2025-01-12 09:15:31,665 - INFO - Successfully connected to database
+2025-01-12 09:15:31,680 - INFO - Successfully connected to database
+2025-01-12 09:15:37,353 - INFO - Successfully connected to database
+2025-01-12 09:15:37,477 - INFO - Successfully connected to database
+2025-01-12 09:15:38,383 - INFO - Successfully connected to database
+2025-01-12 09:15:38,502 - INFO - Successfully connected to database
+2025-01-12 09:17:36,281 - INFO - Successfully connected to database
+2025-01-12 09:17:36,286 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-12 09:17:36,287 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-12 09:17:36,348 - INFO - Successfully connected to database
+2025-01-12 09:17:36,349 - INFO - Successfully connected to database
+2025-01-12 09:17:36,351 - INFO - Successfully connected to database
+2025-01-12 09:17:36,358 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-12 09:17:36,358 - INFO - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-01-12 09:17:36,404 - INFO - Successfully connected to database
+2025-01-12 09:17:36,405 - INFO - Successfully connected to database
+2025-01-12 09:17:36,406 - INFO - Successfully connected to database
+2025-01-12 09:17:41,303 - INFO - Successfully connected to database
+2025-01-12 09:17:41,304 - INFO - Successfully connected to database
+2025-01-12 09:17:43,564 - INFO - Successfully connected to database
+2025-01-12 09:17:43,581 - INFO - Successfully connected to database
+2025-01-12 09:17:46,785 - INFO - Successfully connected to database
+2025-01-12 09:17:46,924 - INFO - Successfully connected to database
+2025-01-12 09:17:48,299 - INFO - Successfully connected to database
+2025-01-12 09:17:52,232 - INFO - Successfully connected to database
+2025-01-12 09:37:59,497 - INFO - Successfully connected to database
+2025-01-12 09:37:59,559 - INFO - Successfully connected to database
+2025-01-12 09:37:59,561 - INFO - Successfully connected to database
+2025-01-12 09:37:59,562 - INFO - Successfully connected to database
+2025-01-12 09:37:59,611 - INFO - Successfully connected to database
+2025-01-12 09:37:59,612 - INFO - Successfully connected to database
+2025-01-12 09:37:59,613 - INFO - Successfully connected to database
+2025-01-12 09:38:01,309 - INFO - Successfully connected to database
+2025-01-12 09:38:01,324 - INFO - Successfully connected to database
+2025-01-12 09:38:02,365 - INFO - Successfully connected to database
+2025-01-12 09:38:02,504 - INFO - Successfully connected to database
+2025-01-12 09:38:04,266 - INFO - Successfully connected to database
+2025-01-12 09:38:07,578 - INFO - Successfully connected to database
+2025-01-12 09:38:08,214 - INFO - Successfully connected to database
