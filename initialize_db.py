@@ -80,15 +80,31 @@ def initialize_database():
             print("- Created menu_categories table")
             
             cursor.execute('''
-                CREATE TABLE bar_stock (
+                CREATE TABLE IF NOT EXISTS bar_stock (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     item_name TEXT NOT NULL UNIQUE,
-                    quantity INTEGER NOT NULL,
-                    min_threshold INTEGER NOT NULL,
+                    unit_type TEXT NOT NULL CHECK(unit_type IN ('ML', 'PIECE', 'PACKET')),
+                    pieces_per_packet INTEGER,     -- For cigarettes (20 pieces per packet)
+                    quantity REAL NOT NULL,        -- Current quantity
+                    original_quantity REAL NOT NULL, -- Initial quantity when added
+                    min_threshold REAL NOT NULL,   -- Warning threshold
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             print("- Created bar_stock table")
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS stock_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_id INTEGER NOT NULL,
+                    change_quantity REAL NOT NULL,
+                    operation_type TEXT CHECK(operation_type IN ('add', 'remove')),
+                    source TEXT NOT NULL,  -- 'sale' or 'expense'
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (item_id) REFERENCES bar_stock (id)
+                )
+            ''')
+            print("- Created stock_history table")
 
             # Create expense_categories table
             cursor.execute('''
@@ -176,18 +192,6 @@ def initialize_database():
                 )
             ''')
             print("- Created sale_items table")
-            
-            cursor.execute('''
-                CREATE TABLE stock_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    item_id INTEGER NOT NULL,
-                    change_quantity INTEGER NOT NULL,
-                    operation_type TEXT CHECK(operation_type IN ('add', 'remove')),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (item_id) REFERENCES bar_stock (id)
-                )
-            ''')
-            print("- Created stock_history table")
             
             print("Step 6: Inserting default data...")
             # 3. Insert Default Data

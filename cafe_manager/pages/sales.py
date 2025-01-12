@@ -849,6 +849,442 @@ class BillWindow(ctk.CTkToplevel):
             self.total
         )
         preview.grab_set()  # Make dialog modal
+    
+    def save_bill(self):
+        """Save bill to database and clear table."""
+        try:
+            if not self.bill_items:
+                messagebox.showerror("Error", "No items in bill")
+                return
+            
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            
+            # Start transaction
+            cursor.execute("BEGIN")
+            
+            try:
+                # Insert sale
+                cursor.execute("""
+                    INSERT INTO sales (
+                        table_number, subtotal,
+                        discount_type, discount_value,
+                        total_amount, payment_status
+                    ) VALUES (?, ?, ?, ?, ?, 'completed')
+                """, (
+                    self.table_number,
+                    self.subtotal,
+                    self.discount_type.get() if self.discount_value.get() else None,
+                    float(self.discount_value.get() or 0),
+                    self.total
+                ))
+                
+                sale_id = cursor.lastrowid
+                
+                # Insert sale items
+                for item_id, item in self.bill_items.items():
+                    cursor.execute("""
+                        INSERT INTO sale_items (
+                            sale_id, menu_item_id,
+                            quantity, price_per_unit,
+                            total_price
+                        ) VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        sale_id,
+                        item_id,
+                        item["quantity"],
+                        item["price"],
+                        item["price"] * item["quantity"]
+                    ))
+                    
+                    # Check if it's a bar item
+                    cursor.execute("""
+                        SELECT bs.id, bs.unit_type, bs.pieces_per_packet
+                        FROM bar_stock bs
+                        JOIN menu_items mi ON mi.name = bs.item_name
+                        WHERE mi.id = ?
+                    """, (item_id,))
+                    
+                    bar_item = cursor.fetchone()
+                    if bar_item:
+                        bar_id, unit_type, pieces = bar_item
+                        quantity = item["quantity"]
+                        
+                        # Calculate actual quantity to deduct
+                        if unit_type == "PACKET":
+                            deduct_qty = quantity / pieces  # Convert pieces to packets
+                        else:
+                            deduct_qty = quantity
+                        
+                        # Update stock
+                        cursor.execute("""
+                            UPDATE bar_stock
+                            SET quantity = quantity - ?,
+                                last_updated = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (deduct_qty, bar_id))
+                        
+                        # Record in history
+                        cursor.execute("""
+                            INSERT INTO stock_history (
+                                item_id, change_quantity,
+                                operation_type, source
+                            ) VALUES (?, ?, 'remove', 'sale')
+                        """, (bar_id, deduct_qty))
+                
+                # Clear temporary bill
+                cursor.execute("""
+                    DELETE FROM temporary_bills
+                    WHERE table_number = ?
+                """, (self.table_number,))
+                
+                # Update table status
+                cursor.execute("""
+                    UPDATE tables
+                    SET status = 'vacant',
+                        last_updated = CURRENT_TIMESTAMP
+                    WHERE table_number = ?
+                """, (self.table_number,))
+                
+                conn.commit()
+                messagebox.showinfo("Success", "Bill saved successfully")
+                
+                # Show bill preview
+                BillPreviewWindow(
+                    self,
+                    self.table_number,
+                    self.bill_items,
+                    self.subtotal,
+                    self.discount_type.get() if self.discount_value.get() else None,
+                    float(self.discount_value.get() or 0),
+                    self.total
+                )
+                
+                # Clear bill
+                self.clear_bill()
+                
+            except Exception as e:
+                conn.rollback()
+                raise e
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save bill: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
+
+    def calculate_item_total(self, menu_item, quantity):
+        """Calculate total based on item category"""
+        try:
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            
+            # Get item category
+            cursor.execute("""
+                SELECT mc.name as category
+                FROM menu_items mi
+                JOIN menu_categories mc ON mi.category_id = mc.id
+                WHERE mi.id = ?
+            """, (menu_item["id"],))
+            
+            result = cursor.fetchone()
+            if not result:
+                return
+                
+            category = result[0]
+            
+            # Special handling for Bar and Cigarette items
+            if category in ['Bar', 'Cigarette']:
+                if category == 'Cigarette':
+                    # For cigarettes, show pieces from packets
+                    display_text = f"{quantity} pieces"
+                    total = menu_item["price"] * quantity
+                else:
+                    # For bar items, show ML
+                    display_text = f"{quantity} ML"
+                    total = menu_item["price"] * quantity
+                    
+                return {
+                    "id": menu_item["id"],
+                    "name": menu_item["name"],
+                    "category": category,
+                    "quantity": quantity,
+                    "display_quantity": display_text,
+                    "price": menu_item["price"],
+                    "total": total
+                }
+            else:
+                # Regular items
+                return {
+                    "id": menu_item["id"],
+                    "name": menu_item["name"],
+                    "category": category,
+                    "quantity": quantity,
+                    "display_quantity": str(quantity),
+                    "price": menu_item["price"],
+                    "total": menu_item["price"] * quantity
+                }
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to process item: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
+
+    def add_selected_item(self):
+        """Modified to handle bar and cigarette items"""
+        selection = self.menu_list.curselection()
+        if not selection:
+            return
+            
+        menu_item = self.menu_items[selection[0]]
+        
+        # Get category
+        conn = self.db.connect()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT mc.name as category
+                FROM menu_items mi
+                JOIN menu_categories mc ON mi.category_id = mc.id
+                WHERE mi.id = ?
+            """, (menu_item["id"],))
+            
+            result = cursor.fetchone()
+            if not result:
+                return
+                
+            category = result[0]
+            
+            # Show appropriate quantity dialog based on category
+            if category == 'Bar':
+                quantity_dialog = ctk.CTkInputDialog(
+                    text="Enter quantity (in ML):",
+                    title="Quantity (ML)"
+                )
+            elif category == 'Cigarette':
+                quantity_dialog = ctk.CTkInputDialog(
+                    text="Enter number of pieces:",
+                    title="Quantity (Pieces)"
+                )
+            else:
+                quantity_dialog = ctk.CTkInputDialog(
+                    text="Enter quantity:",
+                    title="Quantity"
+                )
+            
+            quantity = quantity_dialog.get_input()
+            
+            try:
+                quantity = float(quantity) if category == 'Bar' else int(quantity)
+                if quantity <= 0:
+                    raise ValueError
+                    
+                if category == 'Cigarette' and quantity > 20:
+                    if not messagebox.askyesno(
+                        "Confirm Quantity", 
+                        f"Add {quantity} pieces? (More than one packet)"
+                    ):
+                        return
+                        
+            except (ValueError, TypeError):
+                messagebox.showerror(
+                    "Error", 
+                    "Please enter a valid quantity"
+                )
+                return
+                
+            # Calculate and add item
+            item_data = self.calculate_item_total(menu_item, quantity)
+            if item_data:
+                self.items.append(item_data)
+                self.update_items_list()
+                self.calculate_bill()
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add item: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
+
+    def update_items_list(self):
+        """Modified to show proper quantity display"""
+        # Clear list
+        for widget in self.items_frame.winfo_children():
+            widget.destroy()
+            
+        # Headers
+        headers = ["Item", "Quantity", "Price", "Total", ""]
+        for col, text in enumerate(headers):
+            ctk.CTkLabel(
+                self.items_frame,
+                text=text,
+                font=("Helvetica", 12, "bold")
+            ).grid(row=0, column=col, padx=10, pady=5, sticky="w")
+            
+        # Items
+        for i, item in enumerate(self.items, 1):
+            # Item name
+            ctk.CTkLabel(
+                self.items_frame,
+                text=item["name"]
+            ).grid(row=i, column=0, padx=10, pady=5, sticky="w")
+            
+            # Quantity (with ML or pieces)
+            ctk.CTkLabel(
+                self.items_frame,
+                text=item["display_quantity"]
+            ).grid(row=i, column=1, padx=10, pady=5, sticky="w")
+            
+            # Price
+            ctk.CTkLabel(
+                self.items_frame,
+                text=f"₹{item['price']:.2f}"
+            ).grid(row=i, column=2, padx=10, pady=5, sticky="w")
+            
+            # Total
+            ctk.CTkLabel(
+                self.items_frame,
+                text=f"₹{item['total']:.2f}"
+            ).grid(row=i, column=3, padx=10, pady=5, sticky="w")
+            
+            # Remove button
+            ctk.CTkButton(
+                self.items_frame,
+                text="×",
+                width=30,
+                height=30,
+                command=lambda x=i-1: self.remove_item(x)
+            ).grid(row=i, column=4, padx=10, pady=5)
+
+    def save_bill(self):
+        """Modified to handle bar and cigarette stock updates"""
+        if not self.items:
+            messagebox.showerror("Error", "No items in bill")
+            return
+            
+        try:
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            
+            # Start transaction
+            cursor.execute("BEGIN")
+            
+            try:
+                # Save sale
+                cursor.execute("""
+                    INSERT INTO sales (
+                        table_number, subtotal, discount_type,
+                        discount_value, total_amount, sale_date
+                    ) VALUES (?, ?, ?, ?, ?, DATETIME('now', 'localtime'))
+                """, (
+                    self.table_number,
+                    self.subtotal,
+                    self.discount_type_var.get(),
+                    self.discount_value_var.get() or 0,
+                    self.total,
+                ))
+                
+                # Get sale ID
+                sale_id = cursor.lastrowid
+                
+                # Save sale items and update stock
+                for item in self.items:
+                    # Save sale item
+                    cursor.execute("""
+                        INSERT INTO sale_items (
+                            sale_id, item_id, quantity,
+                            price_per_unit, total_price
+                        ) VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        sale_id,
+                        item["id"],
+                        item["quantity"],
+                        item["price"],
+                        item["total"]
+                    ))
+                    
+                    # Update stock for bar and cigarette items
+                    if item["category"] in ['Bar', 'Cigarette']:
+                        # Get current stock
+                        cursor.execute("""
+                            SELECT id, quantity, unit_type
+                            FROM bar_stock
+                            WHERE item_name = (
+                                SELECT name FROM menu_items WHERE id = ?
+                            )
+                        """, (item["id"],))
+                        
+                        stock = cursor.fetchone()
+                        if not stock:
+                            raise Exception(f"No stock found for {item['name']}")
+                            
+                        stock_id, current_qty, unit_type = stock
+                        
+                        # Calculate new quantity
+                        new_qty = current_qty - item["quantity"]
+                        if new_qty < 0:
+                            raise Exception(f"Insufficient stock for {item['name']}")
+                        
+                        # Update stock
+                        cursor.execute("""
+                            UPDATE bar_stock
+                            SET quantity = ?, last_updated = DATETIME('now', 'localtime')
+                            WHERE id = ?
+                        """, (new_qty, stock_id))
+                        
+                        # Record in history
+                        cursor.execute("""
+                            INSERT INTO stock_history (
+                                item_id, change_quantity,
+                                operation_type, source, created_at
+                            ) VALUES (?, ?, 'subtract', 'sale', DATETIME('now', 'localtime'))
+                        """, (stock_id, item["quantity"]))
+                
+                # Clear temporary bill
+                cursor.execute("""
+                    DELETE FROM temporary_bills
+                    WHERE table_number = ?
+                """, (self.table_number,))
+                
+                # Update table status
+                cursor.execute("""
+                    UPDATE tables
+                    SET status = 'vacant'
+                    WHERE number = ?
+                """, (self.table_number,))
+                
+                conn.commit()
+                
+                # Show bill preview
+                preview = BillPreviewWindow(
+                    self,
+                    self.table_number,
+                    self.items,
+                    self.subtotal,
+                    self.discount_type_var.get(),
+                    self.discount_value_var.get(),
+                    self.total
+                )
+                preview.grab_set()
+                
+                # Close bill window
+                self.destroy()
+                
+                # Refresh tables view
+                if hasattr(self.parent, 'load_tables'):
+                    self.parent.load_tables()
+                
+            except Exception as e:
+                conn.rollback()
+                raise e
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save bill: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
 
 class SalesPage(ctk.CTkFrame):
     """Sales page showing table grid and managing bills."""

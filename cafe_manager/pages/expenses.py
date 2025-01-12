@@ -127,62 +127,89 @@ class AddExpenseDialog(ctk.CTkToplevel):
             self.total_label.configure(text="₹0.00")
 
     def save_expense(self):
-        """Save the expense to database"""
+        """Save expense to database."""
         try:
+            # Get and validate inputs
             name = self.name_entry.get().strip()
+            title = self.title_entry.get().strip()
             category = self.category_var.get()
             
             try:
                 quantity = float(self.quantity_entry.get())
                 price = float(self.price_entry.get())
             except ValueError:
-                messagebox.showerror("Error", "Please enter valid numbers for quantity and price")
+                messagebox.showerror("Error", "Please enter valid numbers")
                 return
-                
-            if not all([name, category, quantity > 0, price > 0]):
+            
+            if not all([name, title, category, quantity > 0, price > 0]):
                 messagebox.showerror("Error", "Please fill all fields")
                 return
-                
-            total_amount = quantity * price
             
-            conn = self.db.connect()
+            conn = self.parent.db.connect()
             cursor = conn.cursor()
             
             # Start transaction
             cursor.execute("BEGIN")
             
-            # Save to expenses table
-            cursor.execute("""
-                INSERT INTO expenses (
-                    name, title, category, quantity, 
-                    price_per_unit, total_price, expense_date
-                ) VALUES (?, ?, ?, ?, ?, ?, DATE('now', 'localtime'))
-            """, (name, name, category, quantity, price, total_amount))
-            
-            # If Bar category, update bar_stock
-            if category == 'Bar':
+            try:
+                # Save expense
                 cursor.execute("""
-                    INSERT OR REPLACE INTO bar_stock (
-                        item_name, quantity, min_threshold
-                    ) VALUES (
-                        ?, 
-                        COALESCE((SELECT quantity FROM bar_stock WHERE item_name = ?) + ?, ?),
-                        10
-                    )
-                """, (name, name, quantity, quantity))
-            
-            conn.commit()
-            messagebox.showinfo("Success", "Expense added successfully!")
-            
-            # Refresh parent's expense list if exists
-            if hasattr(self.parent, 'load_expenses'):
-                self.parent.load_expenses()
+                    INSERT INTO expenses (
+                        name, title, category,
+                        quantity, price_per_unit,
+                        total_price, expense_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    name, title, category,
+                    quantity, price,
+                    quantity * price,
+                    self.date_entry.get_date()
+                ))
                 
-            self.destroy()
-            
-        except Exception as e:
-            if conn:
+                # If it's a bar expense, update stock
+                if category == "Bar":
+                    # Get unit type from input or dialog
+                    unit_type = self.unit_type_var.get()  # Add this to dialog
+                    
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO bar_stock (
+                            item_name, unit_type, pieces_per_packet,
+                            quantity, original_quantity, min_threshold
+                        ) VALUES (
+                            ?, ?, ?, 
+                            COALESCE((SELECT quantity FROM bar_stock WHERE item_name = ?) + ?, ?),
+                            ?, ?
+                        )
+                    """, (
+                        name, unit_type,
+                        20 if unit_type == "PACKET" else None,
+                        name, quantity, quantity,
+                        quantity, quantity * 0.2  # Default threshold 20% of original
+                    ))
+                    
+                    # Get the bar_stock id
+                    cursor.execute("SELECT id FROM bar_stock WHERE item_name = ?", (name,))
+                    bar_id = cursor.fetchone()[0]
+                    
+                    # Record in history
+                    cursor.execute("""
+                        INSERT INTO stock_history (
+                            item_id, change_quantity,
+                            operation_type, source
+                        ) VALUES (?, ?, 'add', 'expense')
+                    """, (bar_id, quantity))
+                
+                conn.commit()
+                messagebox.showinfo("Success", "Expense saved successfully")
+                
+                self.parent.load_expenses()
+                self.destroy()
+                
+            except Exception as e:
                 conn.rollback()
+                raise e
+                
+        except Exception as e:
             messagebox.showerror("Error", f"Failed to save expense: {str(e)}")
         finally:
             if conn:
@@ -190,6 +217,338 @@ class AddExpenseDialog(ctk.CTkToplevel):
 
     def center_window(self):
         """Center the window on screen"""
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'+{x}+{y}')
+
+class AddBarExpenseDialog(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.db = DatabaseManager()
+        
+        # Window setup
+        self.title("Add Bar Expense")
+        self.geometry("400x500")
+        self.resizable(False, False)
+        
+        self.setup_ui()
+        self.center_window()
+    
+    def setup_ui(self):
+        # Main container
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Title
+        ctk.CTkLabel(
+            main_frame,
+            text="Add Bar Expense",
+            font=("Helvetica", 20, "bold")
+        ).pack(pady=(0, 20))
+        
+        # Drink Name
+        ctk.CTkLabel(main_frame, text="Drink Name:").pack(anchor="w", pady=(10,0))
+        self.name_entry = ctk.CTkEntry(main_frame, width=300)
+        self.name_entry.pack(pady=(0, 15))
+        
+        # Quantity (ML)
+        ctk.CTkLabel(main_frame, text="Quantity (ML):").pack(anchor="w", pady=(10,0))
+        self.quantity_entry = ctk.CTkEntry(main_frame, width=300)
+        self.quantity_entry.pack(pady=(0, 15))
+        
+        # Total Cost
+        ctk.CTkLabel(main_frame, text="Total Cost (₹):").pack(anchor="w", pady=(10,0))
+        self.cost_entry = ctk.CTkEntry(main_frame, width=300)
+        self.cost_entry.pack(pady=(0, 20))
+        
+        # Buttons Frame
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(fill="x", pady=20)
+        
+        # Save Button
+        ctk.CTkButton(
+            buttons_frame,
+            text="Save Bar Expense",
+            command=self.save_expense,
+            fg_color="#10B981",
+            hover_color="#059669",
+            width=140,
+            height=40
+        ).pack(side="left", padx=10, expand=True)
+        
+        # Cancel Button
+        ctk.CTkButton(
+            buttons_frame,
+            text="Cancel",
+            command=self.destroy,
+            fg_color="#EF4444",
+            hover_color="#DC2626",
+            width=140,
+            height=40
+        ).pack(side="right", padx=10, expand=True)
+    
+    def save_expense(self):
+        try:
+            # Get and validate inputs
+            name = self.name_entry.get().strip()
+            quantity = self.quantity_entry.get().strip()
+            cost = self.cost_entry.get().strip()
+            
+            if not all([name, quantity, cost]):
+                messagebox.showerror("Error", "Please fill all fields")
+                return
+            
+            try:
+                quantity = float(quantity)
+                cost = float(cost)
+                if quantity <= 0 or cost <= 0:
+                    raise ValueError()
+            except ValueError:
+                messagebox.showerror("Error", "Please enter valid numbers")
+                return
+            
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute("BEGIN")
+                
+                # Save to expenses table
+                cursor.execute("""
+                    INSERT INTO expenses (
+                        name, title, category, quantity,
+                        price_per_unit, total_price, expense_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, DATE('now', 'localtime'))
+                """, (
+                    name,
+                    f"{name} ({quantity}ML)",
+                    "Bar",
+                    quantity,
+                    cost/quantity,  # Price per ML
+                    cost,
+                ))
+                
+                # Update bar stock
+                cursor.execute("""
+                    INSERT OR REPLACE INTO bar_stock (
+                        item_name, unit_type, quantity, original_quantity,
+                        min_threshold, last_updated
+                    ) VALUES (
+                        ?, 'ML',
+                        COALESCE((SELECT quantity FROM bar_stock WHERE item_name = ?) + ?, ?),
+                        ?, ?, DATETIME('now', 'localtime')
+                    )
+                """, (
+                    name, name, quantity, quantity,
+                    quantity, quantity * 0.2  # 20% threshold
+                ))
+                
+                # Get the bar_stock id
+                cursor.execute("SELECT id FROM bar_stock WHERE item_name = ?", (name,))
+                bar_id = cursor.fetchone()[0]
+                
+                # Record in history
+                cursor.execute("""
+                    INSERT INTO stock_history (
+                        item_id, change_quantity, operation_type,
+                        source, created_at
+                    ) VALUES (?, ?, 'add', 'expense', DATETIME('now', 'localtime'))
+                """, (bar_id, quantity))
+                
+                conn.commit()
+                messagebox.showinfo("Success", "Bar expense added successfully!")
+                
+                if hasattr(self.parent, 'load_expenses'):
+                    self.parent.load_expenses()
+                
+                self.destroy()
+                
+            except Exception as e:
+                conn.rollback()
+                raise e
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save expense: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
+    
+    def center_window(self):
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'+{x}+{y}')
+
+class AddCigaretteExpenseDialog(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.db = DatabaseManager()
+        
+        # Window setup
+        self.title("Add Cigarette Expense")
+        self.geometry("400x500")
+        self.resizable(False, False)
+        
+        self.setup_ui()
+        self.center_window()
+    
+    def setup_ui(self):
+        # Main container
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Title
+        ctk.CTkLabel(
+            main_frame,
+            text="Add Cigarette Expense",
+            font=("Helvetica", 20, "bold")
+        ).pack(pady=(0, 20))
+        
+        # Brand Name
+        ctk.CTkLabel(main_frame, text="Brand Name:").pack(anchor="w", pady=(10,0))
+        self.name_entry = ctk.CTkEntry(main_frame, width=300)
+        self.name_entry.pack(pady=(0, 15))
+        
+        # Quantity (Packets)
+        ctk.CTkLabel(main_frame, text="Quantity (Packets):").pack(anchor="w", pady=(10,0))
+        self.quantity_entry = ctk.CTkEntry(main_frame, width=300)
+        self.quantity_entry.pack(pady=(0, 15))
+        
+        # Total Cost
+        ctk.CTkLabel(main_frame, text="Total Cost (₹):").pack(anchor="w", pady=(10,0))
+        self.cost_entry = ctk.CTkEntry(main_frame, width=300)
+        self.cost_entry.pack(pady=(0, 20))
+        
+        # Info Label
+        ctk.CTkLabel(
+            main_frame,
+            text="(1 packet = 20 pieces)",
+            text_color="gray"
+        ).pack(pady=(0, 20))
+        
+        # Buttons Frame
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(fill="x", pady=20)
+        
+        # Save Button
+        ctk.CTkButton(
+            buttons_frame,
+            text="Save Cigarette Expense",
+            command=self.save_expense,
+            fg_color="#10B981",
+            hover_color="#059669",
+            width=140,
+            height=40
+        ).pack(side="left", padx=10, expand=True)
+        
+        # Cancel Button
+        ctk.CTkButton(
+            buttons_frame,
+            text="Cancel",
+            command=self.destroy,
+            fg_color="#EF4444",
+            hover_color="#DC2626",
+            width=140,
+            height=40
+        ).pack(side="right", padx=10, expand=True)
+    
+    def save_expense(self):
+        try:
+            # Get and validate inputs
+            name = self.name_entry.get().strip()
+            packets = self.quantity_entry.get().strip()
+            cost = self.cost_entry.get().strip()
+            
+            if not all([name, packets, cost]):
+                messagebox.showerror("Error", "Please fill all fields")
+                return
+            
+            try:
+                packets = int(packets)
+                cost = float(cost)
+                if packets <= 0 or cost <= 0:
+                    raise ValueError()
+            except ValueError:
+                messagebox.showerror("Error", "Please enter valid numbers")
+                return
+            
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute("BEGIN")
+                
+                pieces = packets * 20  # Convert packets to pieces
+                
+                # Save to expenses table
+                cursor.execute("""
+                    INSERT INTO expenses (
+                        name, title, category, quantity,
+                        price_per_unit, total_price, expense_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, DATE('now', 'localtime'))
+                """, (
+                    name,
+                    f"{name} ({packets} packets)",
+                    "Cigarette",
+                    pieces,  # Store as pieces
+                    cost/pieces,  # Cost per piece
+                    cost,
+                ))
+                
+                # Update bar stock
+                cursor.execute("""
+                    INSERT OR REPLACE INTO bar_stock (
+                        item_name, unit_type, pieces_per_packet,
+                        quantity, original_quantity, min_threshold,
+                        last_updated
+                    ) VALUES (
+                        ?, 'PACKET', 20,
+                        COALESCE((SELECT quantity FROM bar_stock WHERE item_name = ?) + ?, ?),
+                        ?, ?, DATETIME('now', 'localtime')
+                    )
+                """, (
+                    name, name, pieces, pieces,
+                    pieces, pieces * 0.2  # 20% threshold
+                ))
+                
+                # Get the bar_stock id
+                cursor.execute("SELECT id FROM bar_stock WHERE item_name = ?", (name,))
+                bar_id = cursor.fetchone()[0]
+                
+                # Record in history
+                cursor.execute("""
+                    INSERT INTO stock_history (
+                        item_id, change_quantity, operation_type,
+                        source, created_at
+                    ) VALUES (?, ?, 'add', 'expense', DATETIME('now', 'localtime'))
+                """, (bar_id, pieces))
+                
+                conn.commit()
+                messagebox.showinfo("Success", "Cigarette expense added successfully!")
+                
+                if hasattr(self.parent, 'load_expenses'):
+                    self.parent.load_expenses()
+                
+                self.destroy()
+                
+            except Exception as e:
+                conn.rollback()
+                raise e
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save expense: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
+    
+    def center_window(self):
         self.update_idletasks()
         width = self.winfo_width()
         height = self.winfo_height()
@@ -232,16 +591,43 @@ class ExpensesPage(ctk.CTkFrame):
     def create_header(self):
         """Create page header with Add Expense button."""
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.grid(row=0, column=0, padx=20, pady=(10,5), sticky="ew")
+        header_frame.grid(row=0, column=0, padx=20, pady=(20,0), sticky="ew")
         header_frame.grid_columnconfigure(1, weight=1)
         
-        # Add Expense Button
-        add_btn = ctk.CTkButton(
+        # Title
+        ctk.CTkLabel(
             header_frame,
+            text="Expense Management",
+            font=("Helvetica", 24, "bold")
+        ).grid(row=0, column=0, sticky="w")
+        
+        # Buttons Frame
+        buttons_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        buttons_frame.grid(row=0, column=1, sticky="e")
+        
+        # Add General Expense Button
+        ctk.CTkButton(
+            buttons_frame,
             text="+ Add Expense",
-            command=self.show_add_expense_dialog
-        )
-        add_btn.grid(row=0, column=1, padx=10, sticky="e")
+            command=self.show_add_expense_dialog,
+            width=120
+        ).pack(side="right", padx=5)
+        
+        # Add Bar Expense Button
+        ctk.CTkButton(
+            buttons_frame,
+            text="+ Bar Expense",
+            command=self.show_bar_expense_dialog,
+            width=120
+        ).pack(side="right", padx=5)
+        
+        # Add Cigarette Expense Button
+        ctk.CTkButton(
+            buttons_frame,
+            text="+ Cigarette Expense",
+            command=self.show_cigarette_expense_dialog,
+            width=120
+        ).pack(side="right", padx=5)
     
     def create_expense_table(self):
         """Create scrollable expense table."""
@@ -452,3 +838,11 @@ class ExpensesPage(ctk.CTkFrame):
         self.total_label.configure(
             text=f"Total Expenses Today: ₹{self.total_expenses:,.2f}"
         )
+    
+    def show_bar_expense_dialog(self):
+        dialog = AddBarExpenseDialog(self)
+        dialog.grab_set()
+    
+    def show_cigarette_expense_dialog(self):
+        dialog = AddCigaretteExpenseDialog(self)
+        dialog.grab_set()
