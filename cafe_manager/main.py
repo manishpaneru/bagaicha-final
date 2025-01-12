@@ -92,8 +92,20 @@ class CafeManager(ctk.CTk):
         
         # Window setup
         self.title(WINDOW_CONFIG["main"]["title"])
-        self.geometry(f"{WINDOW_CONFIG['main']['width']}x{WINDOW_CONFIG['main']['height']}")
-        self.minsize(WINDOW_CONFIG["main"]["min_width"], WINDOW_CONFIG["main"]["min_height"])
+        
+        # Get screen dimensions
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        
+        # Set window size to full screen width and 90% of screen height
+        window_height = int(screen_height * 0.9)
+        self.geometry(f"{screen_width}x{window_height}+0+0")
+        
+        # Set minimum size
+        self.minsize(screen_width, 600)
+        
+        # Ensure window is maximized horizontally
+        self.resizable(False, True)  # Allow only vertical resizing
         
         # Configure grid
         self.grid_columnconfigure(1, weight=1)
@@ -109,9 +121,6 @@ class CafeManager(ctk.CTk):
         
         # Start background tasks
         self.start_background_tasks()
-        
-        # Center window
-        self.center_window()
 
     def setup_ui(self):
         """Create and arrange all UI components."""

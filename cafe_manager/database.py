@@ -35,12 +35,6 @@ class DatabaseManager:
     def connect(self):
         """Create a database connection."""
         try:
-            if not os.path.exists(self.db_path):
-                print(f"Database not found at: {self.db_path}")
-                # Run initialization if database doesn't exist
-                from initialize_db import initialize_database
-                initialize_database()
-                
             self.conn = sqlite3.connect(self.db_path)
             self.conn.execute("PRAGMA foreign_keys = ON")
             logging.info(f"Successfully connected to database at {self.db_path}")
@@ -127,7 +121,22 @@ class DatabaseManager:
                 )
             ''')
             
-            # 7. Expenses table
+            # 7. Temporary bills table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS temporary_bills (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    table_number INTEGER NOT NULL,
+                    menu_item_id INTEGER NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    price_per_unit REAL NOT NULL,
+                    total_price REAL NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (table_number) REFERENCES tables(table_number),
+                    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+                )
+            ''')
+            
+            # 8. Expenses table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS expenses (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,7 +150,7 @@ class DatabaseManager:
                 )
             ''')
             
-            # 8. Staff table
+            # 9. Staff table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS staff (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -156,7 +165,7 @@ class DatabaseManager:
                 )
             ''')
             
-            # 9. Staff payments table
+            # 10. Staff payments table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS staff_payments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -168,7 +177,7 @@ class DatabaseManager:
                 )
             ''')
             
-            # 10. Bar stock table
+            # 11. Bar stock table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS bar_stock (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,7 +188,7 @@ class DatabaseManager:
                 )
             ''')
             
-            # 11. Stock history table
+            # 12. Stock history table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS stock_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -267,14 +276,14 @@ class DatabaseManager:
                 WHERE type='table' AND name IN (
                     'sales', 'sale_items', 'menu_items', 
                     'menu_categories', 'expenses', 'bar_stock',
-                    'staff', 'tables', 'users'
+                    'staff', 'tables', 'users', 'temporary_bills'
                 )
             """)
             
             existing_tables = cursor.fetchall()
             print("Existing tables:", [table[0] for table in existing_tables])
             
-            if len(existing_tables) < 9:
+            if len(existing_tables) < 10:
                 print("Some tables are missing. Reinitializing database...")
                 return False
             return True

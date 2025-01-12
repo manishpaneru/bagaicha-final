@@ -35,6 +35,33 @@ def initialize_database():
             print("- Created users table")
             
             cursor.execute('''
+                CREATE TABLE staff (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    contact TEXT NOT NULL,
+                    salary REAL NOT NULL,
+                    join_date DATE NOT NULL,
+                    last_paid_date DATE,
+                    is_active INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            print("- Created staff table")
+            
+            cursor.execute('''
+                CREATE TABLE staff_payments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    staff_id INTEGER NOT NULL,
+                    amount REAL NOT NULL,
+                    payment_date DATE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (staff_id) REFERENCES staff (id)
+                )
+            ''')
+            print("- Created staff_payments table")
+            
+            cursor.execute('''
                 CREATE TABLE tables (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     table_number INTEGER UNIQUE NOT NULL,
@@ -63,11 +90,26 @@ def initialize_database():
             ''')
             print("- Created bar_stock table")
 
+            # Create expense_categories table
             cursor.execute('''
-                CREATE TABLE expenses (
+                CREATE TABLE IF NOT EXISTS expense_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE
+                )
+            ''')
+
+            # Insert default categories
+            default_categories = ['Management', 'Miscellaneous', 'Bar', 'Kitchen']
+            for category in default_categories:
+                cursor.execute('INSERT OR IGNORE INTO expense_categories (name) VALUES (?)', (category,))
+
+            # Create expenses table with category reference
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS expenses (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     title TEXT NOT NULL,
+                    category TEXT NOT NULL,
                     quantity INTEGER NOT NULL,
                     price_per_unit REAL NOT NULL,
                     total_price REAL NOT NULL,
@@ -89,6 +131,22 @@ def initialize_database():
                 )
             ''')
             print("- Created menu_items table")
+            
+            # Add temporary_bills table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS temporary_bills (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    table_number INTEGER NOT NULL,
+                    menu_item_id INTEGER NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    price_per_unit REAL NOT NULL,
+                    total_price REAL NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (table_number) REFERENCES tables (table_number),
+                    FOREIGN KEY (menu_item_id) REFERENCES menu_items (id)
+                )
+            ''')
+            print("- Created temporary_bills table")
             
             cursor.execute('''
                 CREATE TABLE sales (
@@ -151,6 +209,51 @@ def initialize_database():
                             (category,))
             print("- Inserted default categories")
             
+            # Default menu items
+            # Get category IDs
+            cursor.execute("SELECT id, name FROM menu_categories")
+            category_ids = {name: id for id, name in cursor.fetchall()}
+
+            # Food items
+            food_items = [
+                ("Chicken Momo", category_ids['Food'], 180),
+                ("Veg Momo", category_ids['Food'], 160),
+                ("Chowmein", category_ids['Food'], 150),
+                ("Thukpa", category_ids['Food'], 170),
+            ]
+            for name, category_id, price in food_items:
+                cursor.execute("""
+                    INSERT INTO menu_items (name, category_id, price)
+                    VALUES (?, ?, ?)
+                """, (name, category_id, price))
+
+            # Drinks items
+            drinks_items = [
+                ("Coca Cola", category_ids['Drinks'], 60),
+                ("Fanta", category_ids['Drinks'], 60),
+                ("Coffee", category_ids['Drinks'], 50),
+                ("Tea", category_ids['Drinks'], 30),
+            ]
+            for name, category_id, price in drinks_items:
+                cursor.execute("""
+                    INSERT INTO menu_items (name, category_id, price)
+                    VALUES (?, ?, ?)
+                """, (name, category_id, price))
+
+            # Snacks items
+            snacks_items = [
+                ("French Fries", category_ids['Snacks'], 120),
+                ("Potato Chips", category_ids['Snacks'], 100),
+                ("Peanuts", category_ids['Snacks'], 80),
+            ]
+            for name, category_id, price in snacks_items:
+                cursor.execute("""
+                    INSERT INTO menu_items (name, category_id, price)
+                    VALUES (?, ?, ?)
+                """, (name, category_id, price))
+
+            print("- Inserted default menu items")
+
             # Commit all changes
             print("Step 7: Committing changes...")
             conn.commit()

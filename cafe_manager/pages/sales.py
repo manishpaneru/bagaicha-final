@@ -236,7 +236,6 @@ class BillWindow(ctk.CTkToplevel):
         # Initialize variables
         self.menu_items = {}
         self.bill_items = {}
-        self.current_sale_id = None
         self.subtotal = 0.0
         self.total = 0.0
         
@@ -250,8 +249,8 @@ class BillWindow(ctk.CTkToplevel):
         # Then load menu items
         self.load_menu_items()
         
-        # Finally load existing bill if any
-        self.load_existing_bill()
+        # Load existing temporary bill items
+        self.load_existing_items()
     
     def setup_ui(self):
         # Split view - Menu items on left, Bill on right
@@ -551,17 +550,73 @@ class BillWindow(ctk.CTkToplevel):
             messagebox.showerror("Error", "Please enter a valid quantity")
             return
         
-        # Add item with quantity
-        if item['id'] in self.bill_items:
-            self.bill_items[item['id']]['quantity'] += quantity
-        else:
-            self.bill_items[item['id']] = {
-                'name': item['name'],
-                'price': item['price'],
-                'quantity': quantity
-            }
-        
-        self.update_bill_display()
+        try:
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            
+            # Start transaction
+            cursor.execute("BEGIN")
+            
+            # Add item with quantity
+            if item['id'] in self.bill_items:
+                new_quantity = self.bill_items[item['id']]['quantity'] + quantity
+                total_price = item['price'] * new_quantity
+                
+                # Update temporary_bills
+                cursor.execute("""
+                    UPDATE temporary_bills
+                    SET quantity = ?, total_price = ?
+                    WHERE table_number = ? AND menu_item_id = ?
+                """, (new_quantity, total_price, self.table_number, item['id']))
+                
+                self.bill_items[item['id']]['quantity'] = new_quantity
+            else:
+                total_price = item['price'] * quantity
+                
+                # Insert into temporary_bills
+                cursor.execute("""
+                    INSERT INTO temporary_bills (
+                        table_number, menu_item_id, quantity,
+                        price_per_unit, total_price
+                    ) VALUES (?, ?, ?, ?, ?)
+                """, (
+                    self.table_number,
+                    item['id'],
+                    quantity,
+                    item['price'],
+                    total_price
+                ))
+                
+                self.bill_items[item['id']] = {
+                    'name': item['name'],
+                    'price': item['price'],
+                    'quantity': quantity
+                }
+            
+            # Update table status if this is the first item
+            if len(self.bill_items) == 1:
+                cursor.execute("""
+                    UPDATE tables 
+                    SET status = 'occupied'
+                    WHERE table_number = ?
+                """, (self.table_number,))
+                
+                # Update table button color in parent
+                self.parent.update_table_status(self.table_number, "occupied")
+            
+            # Commit transaction
+            conn.commit()
+            
+            # Update display
+            self.update_bill_display()
+            
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            messagebox.showerror("Error", f"Failed to add item: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
     
     def update_bill_display(self):
         """Update the bill display"""
@@ -607,120 +662,119 @@ class BillWindow(ctk.CTkToplevel):
     def remove_from_bill(self, item_id):
         """Remove item from bill"""
         if item_id in self.bill_items:
-            if self.bill_items[item_id]['quantity'] > 1:
-                self.bill_items[item_id]['quantity'] -= 1
-            else:
-                del self.bill_items[item_id]
-            
-            self.update_bill_display()
+            try:
+                conn = self.db.connect()
+                cursor = conn.cursor()
+                
+                # Start transaction
+                cursor.execute("BEGIN")
+                
+                if self.bill_items[item_id]['quantity'] > 1:
+                    # Update quantity
+                    new_quantity = self.bill_items[item_id]['quantity'] - 1
+                    total_price = self.bill_items[item_id]['price'] * new_quantity
+                    
+                    cursor.execute("""
+                        UPDATE temporary_bills
+                        SET quantity = ?, total_price = ?
+                        WHERE table_number = ? AND menu_item_id = ?
+                    """, (new_quantity, total_price, self.table_number, item_id))
+                    
+                    self.bill_items[item_id]['quantity'] = new_quantity
+                else:
+                    # Remove item completely
+                    cursor.execute("""
+                        DELETE FROM temporary_bills
+                        WHERE table_number = ? AND menu_item_id = ?
+                    """, (self.table_number, item_id))
+                    
+                    del self.bill_items[item_id]
+                
+                # If no items left, update table status
+                if not self.bill_items:
+                    cursor.execute("""
+                        UPDATE tables
+                        SET status = 'vacant'
+                        WHERE table_number = ?
+                    """, (self.table_number,))
+                    self.parent.update_table_status(self.table_number, "vacant")
+                
+                # Commit transaction
+                conn.commit()
+                
+                # Update display
+                self.update_bill_display()
+                
+            except Exception as e:
+                if conn:
+                    conn.rollback()
+                messagebox.showerror("Error", f"Failed to remove item: {str(e)}")
+            finally:
+                if conn:
+                    conn.close()
     
-    def load_existing_bill(self):
-        """Load existing bill for the table if any"""
+    def load_existing_items(self):
+        """Load any existing items for this table from temporary_bills"""
         try:
             conn = self.db.connect()
             cursor = conn.cursor()
             
-            # Get pending sale for the table
             cursor.execute("""
-                SELECT id, subtotal, discount_type, discount_value, total_amount
-                FROM sales
-                WHERE table_number = ? AND payment_status = 'pending'
-                ORDER BY created_at DESC
-                LIMIT 1
+                SELECT tb.menu_item_id, mi.name, tb.quantity, 
+                       tb.price_per_unit, tb.total_price
+                FROM temporary_bills tb
+                JOIN menu_items mi ON tb.menu_item_id = mi.id
+                WHERE tb.table_number = ?
             """, (self.table_number,))
             
-            sale = cursor.fetchone()
-            if sale:
-                self.current_sale_id = sale[0]
-                
-                # Get sale items
-                cursor.execute("""
-                    SELECT menu_item_id, quantity, price_per_unit
-                    FROM sale_items
-                    WHERE sale_id = ?
-                """, (self.current_sale_id,))
-                
-                items = cursor.fetchall()
-                for item in items:
-                    # Get item name
-                    cursor.execute("""
-                        SELECT name
-                        FROM menu_items
-                        WHERE id = ?
-                    """, (item[0],))
-                    name = cursor.fetchone()[0]
-                    
-                    self.bill_items[item[0]] = {
-                        'name': name,
-                        'price': item[2],
-                        'quantity': item[1]
-                    }
-                
-                # Set discount
-                self.discount_type.set(sale[2] or "percentage")
-                self.discount_value.set(str(sale[3] or 0))
-                
-                # Update display
-                self.update_bill_display()
+            existing_items = cursor.fetchall()
             
+            for item in existing_items:
+                self.bill_items[item[0]] = {
+                    'name': item[1],
+                    'quantity': item[2],
+                    'price': item[3]
+                }
+            
+            if self.bill_items:
+                self.update_bill_display()
+                
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load existing bill: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load existing items: {str(e)}")
         finally:
             if conn:
                 conn.close()
     
-    def save_bill(self):
-        """Save current bill to database"""
+    def pay_bill(self):
+        """Handle bill payment"""
         if not self.bill_items:
-            messagebox.showerror("Error", "Cannot save empty bill")
+            messagebox.showerror("Error", "Cannot process empty bill")
             return
-        
+            
         try:
+            # First save the sale in database
             conn = self.db.connect()
             cursor = conn.cursor()
             
             # Start transaction
             cursor.execute("BEGIN")
             
-            if self.current_sale_id:
-                # Update existing sale
-                cursor.execute("""
-                    UPDATE sales
-                    SET subtotal = ?, discount_type = ?, discount_value = ?, total_amount = ?
-                    WHERE id = ?
-                """, (
-                    self.subtotal,
-                    self.discount_type.get(),
-                    float(self.discount_value.get() or 0),
-                    self.total,
-                    self.current_sale_id
-                ))
-                
-                # Delete existing items
-                cursor.execute("DELETE FROM sale_items WHERE sale_id = ?", (self.current_sale_id,))
-            else:
-                # Create new sale
-                cursor.execute("""
-                    INSERT INTO sales (
-                        table_number, subtotal, discount_type,
-                        discount_value, total_amount, payment_status
-                    ) VALUES (?, ?, ?, ?, ?, 'pending')
-                """, (
-                    self.table_number,
-                    self.subtotal,
-                    self.discount_type.get(),
-                    float(self.discount_value.get() or 0),
-                    self.total
-                ))
-                
-                self.current_sale_id = cursor.lastrowid
-                
-                # Update table status
-                cursor.execute("""
-                    UPDATE tables
-                    SET status = 'occupied'
-                    WHERE table_number = ?
-                """, (self.table_number,))
+            # Insert sale record
+            cursor.execute("""
+                INSERT INTO sales (
+                    table_number, subtotal, discount_type,
+                    discount_value, total_amount, payment_status
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                self.table_number,
+                self.subtotal,
+                self.discount_type.get(),
+                float(self.discount_value.get() or 0),
+                self.total,
+                "completed"
+            ))
+            
+            sale_id = cursor.lastrowid
             
             # Insert sale items
             for item_id, item in self.bill_items.items():
@@ -730,59 +784,34 @@ class BillWindow(ctk.CTkToplevel):
                         price_per_unit, total_price
                     ) VALUES (?, ?, ?, ?, ?)
                 """, (
-                    self.current_sale_id,
+                    sale_id,
                     item_id,
                     item['quantity'],
                     item['price'],
                     item['price'] * item['quantity']
                 ))
             
-            # Commit transaction
-            conn.commit()
+            # Clear temporary items
+            cursor.execute("""
+                DELETE FROM temporary_bills
+                WHERE table_number = ?
+            """, (self.table_number,))
             
-            # Update parent's table button
-            self.parent.update_table_status(self.table_number, "occupied")
-            
-        except Exception as e:
-            if conn:
-                conn.rollback()
-            messagebox.showerror("Error", f"Failed to save bill: {str(e)}")
-        finally:
-            if conn:
-                conn.close()
-    
-    def pay_bill(self):
-        """Handle bill payment and table status update"""
-        if not self.current_sale_id:
-            messagebox.showerror("Error", "Please save the bill first")
-            return
-            
-        try:
-            conn = self.db.connect()
-            cursor = conn.cursor()
-            
-            # Start transaction
-            cursor.execute("BEGIN")
-            
-            # Update table status to vacant
+            # Update table status back to vacant
             cursor.execute("""
                 UPDATE tables
                 SET status = 'vacant'
                 WHERE table_number = ?
             """, (self.table_number,))
             
-            # Update sale status to completed
-            cursor.execute("""
-                UPDATE sales
-                SET payment_status = 'completed'
-                WHERE id = ?
-            """, (self.current_sale_id,))
-            
             # Commit transaction
             conn.commit()
             
-            # Update parent's table button
+            # Update table button color in parent
             self.parent.update_table_status(self.table_number, "vacant")
+            
+            # Show success message
+            messagebox.showinfo("Success", "Payment processed successfully!")
             
             # Close bill window
             self.destroy()

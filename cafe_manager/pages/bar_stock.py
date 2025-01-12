@@ -156,7 +156,7 @@ class BarStockPage(ctk.CTkFrame):
         """Create and arrange all UI components."""
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)  # Give table row the most weight
         
         # Create header
         self.create_header()
@@ -170,7 +170,7 @@ class BarStockPage(ctk.CTkFrame):
     def create_header(self):
         """Create page header with Add Stock Item button."""
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.grid(row=0, column=0, padx=20, pady=(20,0), sticky="ew")
+        header_frame.grid(row=0, column=0, padx=20, pady=(10,5), sticky="ew")
         header_frame.grid_columnconfigure(1, weight=1)
         
         # Add Item Button
@@ -185,21 +185,34 @@ class BarStockPage(ctk.CTkFrame):
         """Create scrollable stock table."""
         # Table container
         self.table_frame = ctk.CTkFrame(self)
-        self.table_frame.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
+        self.table_frame.grid(row=1, column=0, padx=20, pady=5, sticky="nsew")
+        self.table_frame.grid_columnconfigure(0, weight=1)
+        self.table_frame.grid_rowconfigure(1, weight=1)
         
         # Headers
         headers = ["Item Name", "Current Stock", "Min Threshold", "Status", "Last Updated", "Actions"]
-        for col, text in enumerate(headers):
+        header_frame = ctk.CTkFrame(self.table_frame, fg_color="transparent")
+        header_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        
+        # Configure header columns
+        for i in range(len(headers)):
+            header_frame.grid_columnconfigure(i, weight=1 if i == 0 else 0)  # Give more space to Item Name
+        
+        # Create header labels
+        for i, header in enumerate(headers):
             ctk.CTkLabel(
-                self.table_frame,
-                text=text,
+                header_frame,
+                text=header,
                 font=FONTS["body"]
-            ).grid(row=0, column=col, padx=10, pady=5, sticky="w")
+            ).grid(row=0, column=i, padx=10, pady=5, sticky="w")
         
         # Scrollable frame for stock items
         self.stock_frame = ctk.CTkScrollableFrame(self.table_frame)
-        self.stock_frame.grid(row=1, column=0, columnspan=len(headers), 
-                            sticky="nsew", padx=5, pady=5)
+        self.stock_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        
+        # Configure columns in stock frame
+        for i in range(len(headers)):
+            self.stock_frame.grid_columnconfigure(i, weight=1 if i == 0 else 0)
     
     def create_alerts_section(self):
         """Create low stock alerts section."""
@@ -329,42 +342,55 @@ class BarStockPage(ctk.CTkFrame):
         for row, item in enumerate(self.stock_items):
             item_id, name, quantity, threshold, last_updated = item
             
+            # Create frame for this row
+            item_frame = ctk.CTkFrame(self.stock_frame, fg_color="transparent")
+            item_frame.grid(row=row, column=0, columnspan=6, sticky="ew", pady=2)
+            
+            # Configure columns
+            for i in range(6):
+                item_frame.grid_columnconfigure(i, weight=1 if i == 0 else 0)
+            
             # Item name
             ctk.CTkLabel(
-                self.stock_frame,
-                text=name
-            ).grid(row=row, column=0, padx=10, pady=5, sticky="w")
+                item_frame,
+                text=name,
+                font=FONTS["body"]
+            ).grid(row=0, column=0, padx=10, sticky="w")
             
             # Current stock
             ctk.CTkLabel(
-                self.stock_frame,
-                text=str(quantity)
-            ).grid(row=row, column=1, padx=10, pady=5, sticky="w")
+                item_frame,
+                text=str(quantity),
+                font=FONTS["body"]
+            ).grid(row=0, column=1, padx=10, sticky="w")
             
             # Min threshold
             ctk.CTkLabel(
-                self.stock_frame,
-                text=str(threshold)
-            ).grid(row=row, column=2, padx=10, pady=5, sticky="w")
+                item_frame,
+                text=str(threshold),
+                font=FONTS["body"]
+            ).grid(row=0, column=2, padx=10, sticky="w")
             
             # Status
             status_color = COLORS["error"] if quantity <= threshold else COLORS["success"]
             status_text = "Low Stock" if quantity <= threshold else "In Stock"
             ctk.CTkLabel(
-                self.stock_frame,
+                item_frame,
                 text=status_text,
-                text_color=status_color
-            ).grid(row=row, column=3, padx=10, pady=5, sticky="w")
+                text_color=status_color,
+                font=FONTS["body"]
+            ).grid(row=0, column=3, padx=10, sticky="w")
             
             # Last updated
             ctk.CTkLabel(
-                self.stock_frame,
-                text=last_updated
-            ).grid(row=row, column=4, padx=10, pady=5, sticky="w")
+                item_frame,
+                text=last_updated,
+                font=FONTS["body"]
+            ).grid(row=0, column=4, padx=10, sticky="w")
             
             # Action buttons
-            action_frame = ctk.CTkFrame(self.stock_frame, fg_color="transparent")
-            action_frame.grid(row=row, column=5, padx=10, pady=5, sticky="w")
+            action_frame = ctk.CTkFrame(item_frame, fg_color="transparent")
+            action_frame.grid(row=0, column=5, padx=10, sticky="e")
             
             # Add stock button
             ctk.CTkButton(
