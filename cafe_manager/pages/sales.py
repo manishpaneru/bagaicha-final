@@ -851,12 +851,12 @@ class BillWindow(ctk.CTkToplevel):
         preview.grab_set()  # Make dialog modal
     
     def save_bill(self):
-        """Save bill to database and clear table."""
-        try:
-            if not self.bill_items:
-                messagebox.showerror("Error", "No items in bill")
-                return
+        """Modified to handle bar and cigarette stock updates"""
+        if not self.items:
+            messagebox.showerror("Error", "No items in bill")
+            return
             
+        try:
             conn = self.db.connect()
             cursor = conn.cursor()
             
@@ -864,73 +864,87 @@ class BillWindow(ctk.CTkToplevel):
             cursor.execute("BEGIN")
             
             try:
-                # Insert sale
+                # Save sale
                 cursor.execute("""
                     INSERT INTO sales (
-                        table_number, subtotal,
-                        discount_type, discount_value,
-                        total_amount, payment_status
-                    ) VALUES (?, ?, ?, ?, ?, 'completed')
+                        table_number, subtotal, discount_type,
+                        discount_value, total_amount, sale_date
+                    ) VALUES (?, ?, ?, ?, ?, DATETIME('now', 'localtime'))
                 """, (
                     self.table_number,
                     self.subtotal,
-                    self.discount_type.get() if self.discount_value.get() else None,
-                    float(self.discount_value.get() or 0),
-                    self.total
+                    self.discount_type_var.get(),
+                    self.discount_value_var.get() or 0,
+                    self.total,
                 ))
                 
+                # Get sale ID
                 sale_id = cursor.lastrowid
                 
-                # Insert sale items
-                for item_id, item in self.bill_items.items():
+                # Save sale items and update stock
+                for item in self.items:
+                    # Save sale item
                     cursor.execute("""
                         INSERT INTO sale_items (
-                            sale_id, menu_item_id,
-                            quantity, price_per_unit,
-                            total_price
+                            sale_id, item_id, quantity,
+                            price_per_unit, total_price
                         ) VALUES (?, ?, ?, ?, ?)
                     """, (
                         sale_id,
-                        item_id,
+                        item["id"],
                         item["quantity"],
                         item["price"],
-                        item["price"] * item["quantity"]
+                        item["total"]
                     ))
                     
-                    # Check if it's a bar item
-                    cursor.execute("""
-                        SELECT bs.id, bs.unit_type, bs.pieces_per_packet
-                        FROM bar_stock bs
-                        JOIN menu_items mi ON mi.name = bs.item_name
-                        WHERE mi.id = ?
-                    """, (item_id,))
-                    
-                    bar_item = cursor.fetchone()
-                    if bar_item:
-                        bar_id, unit_type, pieces = bar_item
-                        quantity = item["quantity"]
+                    # Update stock for bar and cigarette items
+                    if item["category"] in ['Bar', 'Cigarette']:
+                        # Get current stock
+                        cursor.execute("""
+                            SELECT id, quantity, unit_type, pieces_per_packet
+                            FROM bar_stock
+                            WHERE item_name = (
+                                SELECT name FROM menu_items WHERE id = ?
+                            )
+                        """, (item["id"],))
                         
-                        # Calculate actual quantity to deduct
-                        if unit_type == "PACKET":
-                            deduct_qty = quantity / pieces  # Convert pieces to packets
+                        stock = cursor.fetchone()
+                        if not stock:
+                            raise Exception(f"No stock found for {item['name']}")
+                            
+                        stock_id, current_qty, unit_type, pieces_per_packet = stock
+                        
+                        # Calculate quantity to deduct based on unit type
+                        if unit_type == 'PACKET':
+                            # For cigarettes, convert pieces to packets
+                            deduct_qty = item["quantity"] / (pieces_per_packet or 20)
                         else:
-                            deduct_qty = quantity
+                            # For bar items, use ML directly
+                            deduct_qty = item["quantity"]
+                        
+                        # Check if we have enough stock
+                        if current_qty < deduct_qty:
+                            raise Exception(
+                                f"Insufficient stock for {item['name']}\n" +
+                                f"Required: {deduct_qty:.1f} {unit_type}\n" +
+                                f"Available: {current_qty:.1f} {unit_type}"
+                            )
                         
                         # Update stock
                         cursor.execute("""
                             UPDATE bar_stock
                             SET quantity = quantity - ?,
-                                last_updated = CURRENT_TIMESTAMP
+                                last_updated = DATETIME('now', 'localtime')
                             WHERE id = ?
-                        """, (deduct_qty, bar_id))
+                        """, (deduct_qty, stock_id))
                         
                         # Record in history
                         cursor.execute("""
                             INSERT INTO stock_history (
                                 item_id, change_quantity,
-                                operation_type, source
-                            ) VALUES (?, ?, 'remove', 'sale')
-                        """, (bar_id, deduct_qty))
+                                operation_type, source, created_at
+                            ) VALUES (?, ?, 'subtract', 'sale', DATETIME('now', 'localtime'))
+                        """, (stock_id, deduct_qty))
                 
                 # Clear temporary bill
                 cursor.execute("""
@@ -941,27 +955,30 @@ class BillWindow(ctk.CTkToplevel):
                 # Update table status
                 cursor.execute("""
                     UPDATE tables
-                    SET status = 'vacant',
-                        last_updated = CURRENT_TIMESTAMP
-                    WHERE table_number = ?
+                    SET status = 'vacant'
+                    WHERE number = ?
                 """, (self.table_number,))
                 
                 conn.commit()
-                messagebox.showinfo("Success", "Bill saved successfully")
                 
                 # Show bill preview
-                BillPreviewWindow(
+                preview = BillPreviewWindow(
                     self,
                     self.table_number,
-                    self.bill_items,
+                    self.items,
                     self.subtotal,
-                    self.discount_type.get() if self.discount_value.get() else None,
-                    float(self.discount_value.get() or 0),
+                    self.discount_type_var.get(),
+                    self.discount_value_var.get(),
                     self.total
                 )
+                preview.grab_set()
                 
-                # Clear bill
-                self.clear_bill()
+                # Close bill window
+                self.destroy()
+                
+                # Refresh tables view
+                if hasattr(self.parent, 'load_tables'):
+                    self.parent.load_tables()
                 
             except Exception as e:
                 conn.rollback()
@@ -1209,7 +1226,7 @@ class BillWindow(ctk.CTkToplevel):
                     if item["category"] in ['Bar', 'Cigarette']:
                         # Get current stock
                         cursor.execute("""
-                            SELECT id, quantity, unit_type
+                            SELECT id, quantity, unit_type, pieces_per_packet
                             FROM bar_stock
                             WHERE item_name = (
                                 SELECT name FROM menu_items WHERE id = ?
@@ -1220,19 +1237,31 @@ class BillWindow(ctk.CTkToplevel):
                         if not stock:
                             raise Exception(f"No stock found for {item['name']}")
                             
-                        stock_id, current_qty, unit_type = stock
+                        stock_id, current_qty, unit_type, pieces_per_packet = stock
                         
-                        # Calculate new quantity
-                        new_qty = current_qty - item["quantity"]
-                        if new_qty < 0:
-                            raise Exception(f"Insufficient stock for {item['name']}")
+                        # Calculate quantity to deduct based on unit type
+                        if unit_type == 'PACKET':
+                            # For cigarettes, convert pieces to packets
+                            deduct_qty = item["quantity"] / (pieces_per_packet or 20)
+                        else:
+                            # For bar items, use ML directly
+                            deduct_qty = item["quantity"]
+                        
+                        # Check if we have enough stock
+                        if current_qty < deduct_qty:
+                            raise Exception(
+                                f"Insufficient stock for {item['name']}\n" +
+                                f"Required: {deduct_qty:.1f} {unit_type}\n" +
+                                f"Available: {current_qty:.1f} {unit_type}"
+                            )
                         
                         # Update stock
                         cursor.execute("""
                             UPDATE bar_stock
-                            SET quantity = ?, last_updated = DATETIME('now', 'localtime')
+                            SET quantity = quantity - ?,
+                                last_updated = DATETIME('now', 'localtime')
                             WHERE id = ?
-                        """, (new_qty, stock_id))
+                        """, (deduct_qty, stock_id))
                         
                         # Record in history
                         cursor.execute("""
@@ -1240,7 +1269,7 @@ class BillWindow(ctk.CTkToplevel):
                                 item_id, change_quantity,
                                 operation_type, source, created_at
                             ) VALUES (?, ?, 'subtract', 'sale', DATETIME('now', 'localtime'))
-                        """, (stock_id, item["quantity"]))
+                        """, (stock_id, deduct_qty))
                 
                 # Clear temporary bill
                 cursor.execute("""

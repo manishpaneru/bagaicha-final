@@ -284,8 +284,9 @@ class BarStockPage(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
         self.db = DatabaseManager()
         
-        # Initialize variables
-        self.stock_items = []
+        # Configure grid
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)  # Give table row the most weight
         
         # Setup UI
         self.setup_ui()
@@ -294,64 +295,152 @@ class BarStockPage(ctk.CTkFrame):
         self.load_stock_data()
     
     def setup_ui(self):
-        # Configure grid
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
-        
-        # Header Frame
+        """Create and arrange all UI components."""
+        # Header frame with title and add button
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.grid(row=0, column=0, padx=20, pady=(20,0), sticky="ew")
+        header_frame.grid(row=0, column=0, padx=20, pady=(20,10), sticky="ew")
+        header_frame.grid_columnconfigure(1, weight=1)
         
+        # Title
         ctk.CTkLabel(
             header_frame,
             text="Bar Stock Management",
             font=("Helvetica", 24, "bold")
-        ).pack(side="left")
+        ).grid(row=0, column=0, sticky="w")
         
-        # Add Item Button
-        add_btn = ctk.CTkButton(
+        # Add Bar Item Button
+        ctk.CTkButton(
             header_frame,
             text="+ Add Bar Item",
-            command=self.show_add_item_dialog,
-            width=150
-        )
-        add_btn.pack(side="right")
+            command=self.show_add_dialog,
+            width=120
+        ).grid(row=0, column=1, sticky="e")
         
-        # Stock Table
-        self.table_frame = ctk.CTkFrame(self)
-        self.table_frame.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
+        # Table container frame
+        self.table_container = ctk.CTkFrame(self)
+        self.table_container.grid(row=1, column=0, padx=20, pady=(0,20), sticky="nsew")
+        self.table_container.grid_columnconfigure(0, weight=1)
+        self.table_container.grid_rowconfigure(1, weight=1)
         
-        # Headers
-        headers = ["Item Name", "Unit Type", "Original", "Remaining", 
-                  "Warning Level", "Status", "Actions"]
+        # Headers frame
+        headers_frame = ctk.CTkFrame(self.table_container, fg_color="transparent")
+        headers_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=5)
         
-        for col, text in enumerate(headers):
+        # Configure header columns
+        headers = ["Item Name", "Unit Type", "Original", "Remaining", "Warning Level", "Status", "Actions"]
+        for i in range(len(headers)):
+            headers_frame.grid_columnconfigure(i, weight=1)
+        
+        # Create headers
+        for i, header in enumerate(headers):
             ctk.CTkLabel(
-                self.table_frame,
-                text=text,
+                headers_frame,
+                text=header,
                 font=("Helvetica", 12, "bold")
-            ).grid(row=0, column=col, padx=10, pady=5, sticky="w")
+            ).grid(row=0, column=i, padx=5, pady=5, sticky="w")
         
-        # Scrollable frame for stock items
-        self.stock_frame = ctk.CTkScrollableFrame(self.table_frame)
-        self.stock_frame.grid(row=1, column=0, columnspan=len(headers),
-                            sticky="nsew", padx=5, pady=5)
+        # Create scrollable frame for stock items
+        self.stock_frame = ctk.CTkScrollableFrame(self.table_container)
+        self.stock_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0,10))
+        
+        # Configure columns in stock frame
+        for i in range(len(headers)):
+            self.stock_frame.grid_columnconfigure(i, weight=1)
     
     def load_stock_data(self):
-        """Load stock data from database"""
+        """Load and display stock data"""
         try:
+            # Clear existing items
+            for widget in self.stock_frame.winfo_children():
+                widget.destroy()
+            
             conn = self.db.connect()
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT id, item_name, unit_type, pieces_per_packet,
-                       quantity, original_quantity, min_threshold
+                SELECT 
+                    id, item_name, unit_type, pieces_per_packet,
+                    original_quantity, quantity, min_threshold
                 FROM bar_stock
                 ORDER BY item_name
             """)
             
-            self.stock_items = cursor.fetchall()
-            self.update_stock_list()
+            for i, row in enumerate(cursor.fetchall()):
+                item_id, name, unit_type, pieces, original, remaining, threshold = row
+                
+                # Item name
+                ctk.CTkLabel(
+                    self.stock_frame,
+                    text=name
+                ).grid(row=i, column=0, padx=5, pady=5, sticky="w")
+                
+                # Unit type
+                ctk.CTkLabel(
+                    self.stock_frame,
+                    text=unit_type
+                ).grid(row=i, column=1, padx=5, pady=5, sticky="w")
+                
+                # Original quantity
+                if unit_type == "PACKET":
+                    original_text = f"{original/pieces:.1f} packets ({original} pieces)"
+                    remaining_text = f"{remaining/pieces:.1f} packets ({remaining} pieces)"
+                    threshold_text = f"{threshold/pieces:.1f} packets ({threshold} pieces)"
+                else:
+                    original_text = f"{original} {unit_type}"
+                    remaining_text = f"{remaining} {unit_type}"
+                    threshold_text = f"{threshold} {unit_type}"
+                
+                ctk.CTkLabel(
+                    self.stock_frame,
+                    text=original_text
+                ).grid(row=i, column=2, padx=5, pady=5, sticky="w")
+                
+                # Remaining quantity
+                ctk.CTkLabel(
+                    self.stock_frame,
+                    text=remaining_text
+                ).grid(row=i, column=3, padx=5, pady=5, sticky="w")
+                
+                # Warning threshold
+                ctk.CTkLabel(
+                    self.stock_frame,
+                    text=threshold_text
+                ).grid(row=i, column=4, padx=5, pady=5, sticky="w")
+                
+                # Status
+                status_color = "#EF4444" if remaining <= threshold else "#10B981"
+                status_text = "Low Stock" if remaining <= threshold else "OK"
+                
+                ctk.CTkLabel(
+                    self.stock_frame,
+                    text=status_text,
+                    text_color=status_color,
+                    font=("Helvetica", 12, "bold")
+                ).grid(row=i, column=5, padx=5, pady=5, sticky="w")
+                
+                # Actions frame
+                actions_frame = ctk.CTkFrame(self.stock_frame, fg_color="transparent")
+                actions_frame.grid(row=i, column=6, padx=5, pady=5, sticky="w")
+                
+                # Add Stock button
+                ctk.CTkButton(
+                    actions_frame,
+                    text="Add Stock",
+                    command=lambda x=item_id: self.show_add_stock_dialog(x),
+                    width=90,
+                    height=30,
+                    fg_color="#2563EB"
+                ).pack(side="left", padx=5)
+                
+                # Delete button
+                ctk.CTkButton(
+                    actions_frame,
+                    text="×",
+                    command=lambda x=item_id: self.delete_item(x),
+                    width=30,
+                    height=30,
+                    fg_color="#EF4444"
+                ).pack(side="left", padx=5)
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load stock data: {str(e)}")
@@ -359,56 +448,38 @@ class BarStockPage(ctk.CTkFrame):
             if conn:
                 conn.close()
     
-    def update_stock_list(self):
-        """Update stock list display"""
-        # Clear current list
-        for widget in self.stock_frame.winfo_children():
-            widget.destroy()
-        
-        # Add stock items
-        for row, item in enumerate(self.stock_items):
-            item_id, name, unit_type, pieces, qty, orig_qty, threshold = item
-            
-            # Format quantity based on unit type
-            if unit_type == "PACKET":
-                qty_text = f"{qty:.0f} packets ({qty * pieces:.0f} pieces)"
-                orig_text = f"{orig_qty:.0f} packets"
-            else:
-                qty_text = f"{qty:.0f} {unit_type}"
-                orig_text = f"{orig_qty:.0f} {unit_type}"
-            
-            # Status text and color
-            status = "Low Stock!" if qty <= threshold else "OK"
-            status_color = "#EF4444" if qty <= threshold else "#10B981"
-            
-            # Create row items
-            cols = [name, unit_type, orig_text, qty_text, 
-                   f"{threshold:.0f} {unit_type}", status]
-            
-            for col, text in enumerate(cols):
-                label = ctk.CTkLabel(
-                    self.stock_frame,
-                    text=text,
-                    text_color=status_color if col == 5 else None
-                )
-                label.grid(row=row, column=col, padx=10, pady=5, sticky="w")
-            
-            # Action buttons
-            actions_frame = ctk.CTkFrame(self.stock_frame, fg_color="transparent")
-            actions_frame.grid(row=row, column=len(cols), padx=10, pady=5)
-            
-            # Add Stock button
-            ctk.CTkButton(
-                actions_frame,
-                text="Add Stock",
-                width=100,
-                command=lambda i=item_id: self.show_add_stock_dialog(i)
-            ).pack(side="left", padx=5)
-    
-    def show_add_item_dialog(self):
+    def show_add_dialog(self):
         """Show dialog to add new bar item"""
-        AddBarItemDialog(self)
+        dialog = AddBarItemDialog(self)
+        dialog.grab_set()
     
     def show_add_stock_dialog(self, item_id):
         """Show dialog to add stock to existing item"""
-        AddStockDialog(self, item_id)
+        dialog = AddStockDialog(self, item_id)
+        dialog.grab_set()
+    
+    def delete_item(self, item_id):
+        """Delete bar item"""
+        try:
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            
+            # Get item name
+            cursor.execute("SELECT item_name FROM bar_stock WHERE id = ?", (item_id,))
+            item_name = cursor.fetchone()[0]
+            
+            if messagebox.askyesno(
+                "Confirm Delete",
+                f"Are you sure you want to delete {item_name}?"
+            ):
+                cursor.execute("DELETE FROM bar_stock WHERE id = ?", (item_id,))
+                conn.commit()
+                
+                self.load_stock_data()
+                messagebox.showinfo("Success", "Item deleted successfully")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to delete item: {str(e)}")
+        finally:
+            if conn:
+                conn.close()

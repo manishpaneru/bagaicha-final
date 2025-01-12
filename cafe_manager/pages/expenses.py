@@ -471,7 +471,7 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
                 return
             
             try:
-                packets = int(packets)
+                packets = int(packets)    # Number of packets user is adding
                 cost = float(cost)
                 if packets <= 0 or cost <= 0:
                     raise ValueError()
@@ -485,9 +485,7 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
             try:
                 cursor.execute("BEGIN")
                 
-                pieces = packets * 20  # Convert packets to pieces
-                
-                # Save to expenses table
+                # Store quantity as packets directly (not converting to pieces)
                 cursor.execute("""
                     INSERT INTO expenses (
                         name, title, category, quantity,
@@ -495,14 +493,14 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
                     ) VALUES (?, ?, ?, ?, ?, ?, DATE('now', 'localtime'))
                 """, (
                     name,
-                    f"{name} ({packets} packets)",
+                    f"{name} ({packets} packets - {packets * 20} pieces)",
                     "Cigarette",
-                    pieces,  # Store as pieces
-                    cost/pieces,  # Cost per piece
-                    cost,
+                    packets,         # Store actual number of packets
+                    cost/packets,    # Price per packet
+                    cost
                 ))
                 
-                # Update bar stock
+                # Update bar stock - store as packets
                 cursor.execute("""
                     INSERT OR REPLACE INTO bar_stock (
                         item_name, unit_type, pieces_per_packet,
@@ -514,24 +512,24 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
                         ?, ?, DATETIME('now', 'localtime')
                     )
                 """, (
-                    name, name, pieces, pieces,
-                    pieces, pieces * 0.2  # 20% threshold
+                    name, name, packets, packets,
+                    packets, max(1, packets * 0.2)  # 20% threshold, minimum 1 packet
                 ))
                 
                 # Get the bar_stock id
                 cursor.execute("SELECT id FROM bar_stock WHERE item_name = ?", (name,))
                 bar_id = cursor.fetchone()[0]
                 
-                # Record in history
+                # Record in history (in packets)
                 cursor.execute("""
                     INSERT INTO stock_history (
                         item_id, change_quantity, operation_type,
                         source, created_at
                     ) VALUES (?, ?, 'add', 'expense', DATETIME('now', 'localtime'))
-                """, (bar_id, pieces))
+                """, (bar_id, packets))
                 
                 conn.commit()
-                messagebox.showinfo("Success", "Cigarette expense added successfully!")
+                messagebox.showinfo("Success", f"Added {packets} packets ({packets * 20} pieces)")
                 
                 if hasattr(self.parent, 'load_expenses'):
                     self.parent.load_expenses()
