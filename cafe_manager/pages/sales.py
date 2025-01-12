@@ -9,6 +9,212 @@ from database import DatabaseManager
 from datetime import datetime
 import sqlite3
 from tkinter import messagebox
+import os
+
+class BillPreviewWindow(ctk.CTkToplevel):
+    def __init__(self, parent, table_number, bill_items, subtotal, discount_type, discount_value, total):
+        super().__init__(parent)
+        self.title(f"Bill Preview - Table {table_number}")
+        self.geometry("400x600")
+        self.resizable(False, False)
+        
+        # Store data
+        self.table_number = table_number
+        self.bill_items = bill_items
+        self.subtotal = subtotal
+        self.discount_type = discount_type
+        self.discount_value = discount_value
+        self.total = total
+        
+        # Define fonts directly
+        self.header_font = ("Helvetica", 20, "bold")
+        self.subheader_font = ("Helvetica", 14, "bold")
+        self.body_font = ("Helvetica", 12)
+        self.body_bold_font = ("Helvetica", 12, "bold")
+        
+        # Center window
+        self.center_window()
+        self.setup_ui()
+    
+    def setup_ui(self):
+        # Main frame
+        self.main_frame = ctk.CTkFrame(self)
+        self.main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Header
+        header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 20))
+        
+        ctk.CTkLabel(
+            header_frame,
+            text="TROPICAL BAGAICHA",
+            font=self.header_font
+        ).pack()
+        
+        ctk.CTkLabel(
+            header_frame,
+            text="Restaurant & Bar",
+            font=self.body_font
+        ).pack()
+        
+        ctk.CTkLabel(
+            header_frame,
+            text=f"Table: {self.table_number}",
+            font=self.subheader_font
+        ).pack()
+        
+        ctk.CTkLabel(
+            header_frame,
+            text=f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            font=self.body_font
+        ).pack()
+        
+        # Items list
+        items_frame = ctk.CTkScrollableFrame(self.main_frame)
+        items_frame.pack(fill="both", expand=True, pady=10)
+        
+        # Headers
+        headers_frame = ctk.CTkFrame(items_frame, fg_color="transparent")
+        headers_frame.pack(fill="x", padx=5, pady=5)
+        
+        ctk.CTkLabel(headers_frame, text="Item", font=self.body_bold_font).pack(side="left", expand=True, anchor="w")
+        ctk.CTkLabel(headers_frame, text="Qty", font=self.body_bold_font).pack(side="left", padx=10)
+        ctk.CTkLabel(headers_frame, text="Price", font=self.body_bold_font).pack(side="left", padx=10)
+        ctk.CTkLabel(headers_frame, text="Total", font=self.body_bold_font).pack(side="right")
+        
+        # List items
+        for item_id, item in self.bill_items.items():
+            item_frame = ctk.CTkFrame(items_frame, fg_color="transparent")
+            item_frame.pack(fill="x", padx=5, pady=2)
+            
+            ctk.CTkLabel(
+                item_frame,
+                text=item["name"],
+                font=self.body_font
+            ).pack(side="left", expand=True, anchor="w")
+            
+            ctk.CTkLabel(
+                item_frame,
+                text=str(item["quantity"]),
+                font=self.body_font
+            ).pack(side="left", padx=10)
+            
+            ctk.CTkLabel(
+                item_frame,
+                text=f"₹{item['price']:.2f}",
+                font=self.body_font
+            ).pack(side="left", padx=10)
+            
+            ctk.CTkLabel(
+                item_frame,
+                text=f"₹{item['price'] * item['quantity']:.2f}",
+                font=self.body_font
+            ).pack(side="right")
+        
+        # Totals
+        totals_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        totals_frame.pack(fill="x", pady=10)
+        
+        # Subtotal
+        subtotal_frame = ctk.CTkFrame(totals_frame, fg_color="transparent")
+        subtotal_frame.pack(fill="x", pady=2)
+        ctk.CTkLabel(
+            subtotal_frame,
+            text="Subtotal:",
+            font=self.body_font
+        ).pack(side="left")
+        ctk.CTkLabel(
+            subtotal_frame,
+            text=f"₹{self.subtotal:.2f}",
+            font=self.body_font
+        ).pack(side="right")
+        
+        # Discount
+        if float(self.discount_value or 0) > 0:
+            discount_frame = ctk.CTkFrame(totals_frame, fg_color="transparent")
+            discount_frame.pack(fill="x", pady=2)
+            
+            discount_text = f"Discount ({self.discount_type}):"
+            if self.discount_type == "percentage":
+                discount_text = f"Discount ({self.discount_value}%):"
+            
+            ctk.CTkLabel(
+                discount_frame,
+                text=discount_text,
+                font=self.body_font
+            ).pack(side="left")
+            
+            discount_amount = float(self.discount_value or 0)
+            if self.discount_type == "percentage":
+                discount_amount = self.subtotal * (float(self.discount_value or 0) / 100)
+            
+            ctk.CTkLabel(
+                discount_frame,
+                text=f"₹{discount_amount:.2f}",
+                font=self.body_font
+            ).pack(side="right")
+        
+        # Total
+        total_frame = ctk.CTkFrame(totals_frame, fg_color="transparent")
+        total_frame.pack(fill="x", pady=2)
+        ctk.CTkLabel(
+            total_frame,
+            text="Total:",
+            font=self.subheader_font
+        ).pack(side="left")
+        ctk.CTkLabel(
+            total_frame,
+            text=f"₹{self.total:.2f}",
+            font=self.subheader_font
+        ).pack(side="right")
+        
+        # Save Button
+        self.save_btn = ctk.CTkButton(
+            self.main_frame,
+            text="Save Bill",
+            command=self.save_bill_as_image,
+            font=self.body_font,
+            fg_color="#2563EB",  # Blue color
+            hover_color="#1D4ED8"
+        )
+        self.save_btn.pack(pady=10)
+    
+    def save_bill_as_image(self):
+        try:
+            # Create filename with datetime
+            timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+            filename = f"bill-{timestamp}-table{self.table_number}.png"
+            
+            # Get widget position and size
+            x = self.main_frame.winfo_rootx()
+            y = self.main_frame.winfo_rooty()
+            width = self.main_frame.winfo_width()
+            height = self.main_frame.winfo_height()
+            
+            # Take screenshot
+            from PIL import ImageGrab
+            screenshot = ImageGrab.grab(bbox=(x, y, x+width, y+height))
+            
+            # Create bills directory if it doesn't exist
+            os.makedirs('bills', exist_ok=True)
+            
+            # Save image
+            filepath = os.path.join('bills', filename)
+            screenshot.save(filepath)
+            
+            messagebox.showinfo("Success", f"Bill saved as {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save bill: {str(e)}")
+    
+    def center_window(self):
+        """Center the window on the screen"""
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'{width}x{height}+{x}+{y}')
 
 class BillWindow(ctk.CTkToplevel):
     """Bill window for managing table orders."""
@@ -177,6 +383,17 @@ class BillWindow(ctk.CTkToplevel):
         )
         self.total_label.pack(side="right")
         
+        # Add Show Bill Preview button
+        self.show_bill_btn = ctk.CTkButton(
+            self.bill_frame,
+            text="Show Bill Preview",
+            command=self.show_bill_preview,
+            font=FONTS["body"],
+            fg_color="#6366F1",  # Indigo color
+            hover_color="#4F46E5"
+        )
+        self.show_bill_btn.pack(side="bottom", pady=(10,0), padx=20, fill="x")
+        
         # Add Pay Bill button at bottom
         self.pay_bill_button = ctk.CTkButton(
             self.bill_frame,
@@ -187,7 +404,7 @@ class BillWindow(ctk.CTkToplevel):
             height=40,
             font=FONTS["body"]
         )
-        self.pay_bill_button.pack(side="bottom", pady=20, padx=20, fill="x")
+        self.pay_bill_button.pack(side="bottom", pady=10, padx=20, fill="x")
     
     def update_total(self, *args):
         """Update bill total based on discount"""
@@ -318,14 +535,30 @@ class BillWindow(ctk.CTkToplevel):
         self.display_menu_items(category, self.search_var.get())
     
     def add_to_bill(self, item):
-        """Add item to bill"""
+        """Add item to bill with quantity selection"""
+        # Create quantity input dialog
+        quantity_dialog = ctk.CTkInputDialog(
+            text="Enter quantity:",
+            title="Quantity"
+        )
+        quantity = quantity_dialog.get_input()
+        
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            messagebox.showerror("Error", "Please enter a valid quantity")
+            return
+        
+        # Add item with quantity
         if item['id'] in self.bill_items:
-            self.bill_items[item['id']]['quantity'] += 1
+            self.bill_items[item['id']]['quantity'] += quantity
         else:
             self.bill_items[item['id']] = {
                 'name': item['name'],
                 'price': item['price'],
-                'quantity': 1
+                'quantity': quantity
             }
         
         self.update_bill_display()
@@ -570,6 +803,23 @@ class BillWindow(ctk.CTkToplevel):
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'{width}x{height}+{x}+{y}')
+    
+    def show_bill_preview(self):
+        """Show bill preview window"""
+        if not self.bill_items:
+            messagebox.showerror("Error", "No items in bill")
+            return
+        
+        preview = BillPreviewWindow(
+            self,
+            self.table_number,
+            self.bill_items,
+            self.subtotal,
+            self.discount_type.get(),
+            self.discount_value.get(),
+            self.total
+        )
+        preview.grab_set()  # Make dialog modal
 
 class SalesPage(ctk.CTkFrame):
     """Sales page showing table grid and managing bills."""
