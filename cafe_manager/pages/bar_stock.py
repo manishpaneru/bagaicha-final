@@ -382,9 +382,9 @@ class BarStockPage(ctk.CTkFrame):
                 
                 # Original quantity
                 if unit_type == "PACKET":
-                    original_text = f"{original/pieces:.1f} packets ({original} pieces)"
-                    remaining_text = f"{remaining/pieces:.1f} packets ({remaining} pieces)"
-                    threshold_text = f"{threshold/pieces:.1f} packets ({threshold} pieces)"
+                    original_text = f"{original} packets ({original * 20} pieces)"
+                    remaining_text = f"{remaining} packets ({remaining * 20} pieces)"
+                    threshold_text = f"{threshold} packets ({threshold * 20} pieces)"
                 else:
                     original_text = f"{original} {unit_type}"
                     remaining_text = f"{remaining} {unit_type}"

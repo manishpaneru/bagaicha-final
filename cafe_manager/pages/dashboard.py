@@ -235,30 +235,109 @@ class DashboardPage(ctk.CTkFrame):
                         color=CHART_STYLE['text_color'])
         else:
             # Prepare data
-            dates = [row[0] for row in sales_data]
+            times = [row[0] for row in sales_data]
             sales = [row[1] for row in sales_data]
+            expenses = self.fetch_expenses_for_period(self.current_period)
             
-            # Plot with matplotlib styling
-            self.ax.plot(dates, sales, 
-                        marker='o',
-                        color=CHART_STYLE['line_color'],
+            # Plot revenue line
+            self.ax.plot(times, sales, 
+                        color='#3B82F6',  # Blue
+                        label='Revenue',
                         linewidth=2,
+                        marker='o',
                         markersize=6)
             
-            # Customize ticks
-            self.ax.tick_params(colors=CHART_STYLE['text_color'], grid_alpha=CHART_STYLE['grid_alpha'])
+            # Plot expenses line
+            if any(expenses):
+                self.ax.plot(times, expenses,
+                            color='#FCD34D',  # Yellow
+                            label='Expenses',
+                            linewidth=2,
+                            marker='o',
+                            markersize=6)
             
-            # Rotate labels if needed
+            # Customize ticks
+            self.ax.tick_params(colors=CHART_STYLE['text_color'], 
+                              grid_alpha=CHART_STYLE['grid_alpha'])
+            
+            # Rotate x-axis labels for better readability
             plt.xticks(rotation=45 if self.current_period != "daily" else 0)
+            
+            # Add legend
+            self.ax.legend()
             
             # Title and labels
             self.ax.set_title(f'{self.current_period.capitalize()} Sales Overview',
                             pad=20, color=CHART_STYLE['title_color'], fontsize=12)
-            self.ax.set_ylabel('Sales (₹)', color=CHART_STYLE['text_color'])
+            self.ax.set_xlabel('Time', color=CHART_STYLE['text_color'])
+            self.ax.set_ylabel('Amount (₹)', color=CHART_STYLE['text_color'])
+            
+            # Add grid for better readability
+            self.ax.grid(True, linestyle='--', alpha=0.3)
             
         # Adjust layout
         self.figure.tight_layout()
         self.canvas.draw()
+    
+    def fetch_expenses_for_period(self, period="daily"):
+        """Fetch expenses data for the specified period."""
+        try:
+            conn = self.db.connect()
+            cursor = conn.cursor()
+            
+            if period == "daily":
+                query = """
+                    SELECT 
+                        strftime('%H:00', expense_date) as time_period,
+                        SUM(total_price) as total_expenses
+                    FROM expenses
+                    WHERE DATE(expense_date) = DATE('now', 'localtime')
+                    GROUP BY strftime('%H', expense_date)
+                    ORDER BY time_period
+                """
+            elif period == "weekly":
+                query = """
+                    SELECT 
+                        DATE(expense_date) as date,
+                        SUM(total_price) as total_expenses
+                    FROM expenses
+                    WHERE expense_date >= DATE('now', '-7 days')
+                    GROUP BY DATE(expense_date)
+                    ORDER BY date
+                """
+            else:  # monthly
+                query = """
+                    SELECT 
+                        strftime('%Y-%m', expense_date) as month,
+                        SUM(total_price) as total_expenses
+                    FROM expenses
+                    WHERE expense_date >= DATE('now', '-30 days')
+                    GROUP BY strftime('%Y-%m', expense_date)
+                    ORDER BY month
+                """
+            
+            cursor.execute(query)
+            results = cursor.fetchall()
+            
+            # Convert to list of expenses amounts only
+            # Fill with 0 for any missing periods to match sales data length
+            if self.chart_data:
+                expenses = [0] * len(self.chart_data)
+                for result in results:
+                    try:
+                        idx = [row[0] for row in self.chart_data].index(result[0])
+                        expenses[idx] = result[1]
+                    except ValueError:
+                        continue
+                return expenses
+            return []
+            
+        except Exception as e:
+            print(f"Error fetching expenses data: {e}")
+            return []
+        finally:
+            if 'conn' in locals() and conn:
+                conn.close()
     
     def load_data(self):
         """Load all dashboard data."""
@@ -405,7 +484,7 @@ class DashboardPage(ctk.CTkFrame):
     def start_auto_refresh(self):
         """Start auto-refresh timer."""
         self.load_data()
-        self.after(300000, self.start_auto_refresh)  # Refresh every 5 minutes
+        self.after(1000, self.start_auto_refresh)  # Refresh every second
     
     def destroy(self):
         """Clean up resources."""
