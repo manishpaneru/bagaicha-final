@@ -55,6 +55,11 @@ class AddExpenseDialog(ctk.CTkToplevel):
         self.name_entry = ctk.CTkEntry(main_frame, width=300)
         self.name_entry.pack(pady=(0, 10))
         
+        # Title Field
+        ctk.CTkLabel(main_frame, text="Title/Description:").pack(anchor="w", pady=(10, 0))
+        self.title_entry = ctk.CTkEntry(main_frame, width=300)
+        self.title_entry.pack(pady=(0, 10))
+        
         # Category Selection
         ctk.CTkLabel(main_frame, text="Category:").pack(anchor="w", pady=(10, 0))
         categories = ['Management', 'Miscellaneous', 'Bar', 'Kitchen']
@@ -63,7 +68,7 @@ class AddExpenseDialog(ctk.CTkToplevel):
             variable=self.category_var,
             values=categories,
             width=300,
-            command=self.on_category_change  # Now this method exists
+            command=self.on_category_change
         )
         self.category_menu.pack(pady=(0, 10))
         
@@ -141,9 +146,13 @@ class AddExpenseDialog(ctk.CTkToplevel):
                 messagebox.showerror("Error", "Please enter valid numbers")
                 return
             
-            if not all([name, title, category, quantity > 0, price > 0]):
-                messagebox.showerror("Error", "Please fill all fields")
+            if not all([name, category, quantity > 0, price > 0]):
+                messagebox.showerror("Error", "Please fill all required fields")
                 return
+            
+            # If title is empty, use name as title
+            if not title:
+                title = name
             
             conn = self.parent.db.connect()
             cursor = conn.cursor()
@@ -158,47 +167,13 @@ class AddExpenseDialog(ctk.CTkToplevel):
                         name, title, category,
                         quantity, price_per_unit,
                         total_price, expense_date
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, DATE('now', 'localtime'))
                 """, (
                     name, title, category,
                     quantity, price,
-                    quantity * price,
-                    self.date_entry.get_date()
+                    quantity * price
                 ))
-                
-                # If it's a bar expense, update stock
-                if category == "Bar":
-                    # Get unit type from input or dialog
-                    unit_type = self.unit_type_var.get()  # Add this to dialog
-                    
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO bar_stock (
-                            item_name, unit_type, pieces_per_packet,
-                            quantity, original_quantity, min_threshold
-                        ) VALUES (
-                            ?, ?, ?, 
-                            COALESCE((SELECT quantity FROM bar_stock WHERE item_name = ?) + ?, ?),
-                            ?, ?
-                        )
-                    """, (
-                        name, unit_type,
-                        20 if unit_type == "PACKET" else None,
-                        name, quantity, quantity,
-                        quantity, quantity * 0.2  # Default threshold 20% of original
-                    ))
-                    
-                    # Get the bar_stock id
-                    cursor.execute("SELECT id FROM bar_stock WHERE item_name = ?", (name,))
-                    bar_id = cursor.fetchone()[0]
-                    
-                    # Record in history
-                    cursor.execute("""
-                        INSERT INTO stock_history (
-                            item_id, change_quantity,
-                            operation_type, source
-                        ) VALUES (?, ?, 'add', 'expense')
-                    """, (bar_id, quantity))
-                
+
                 conn.commit()
                 messagebox.showinfo("Success", "Expense saved successfully")
                 

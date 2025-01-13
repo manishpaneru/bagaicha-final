@@ -57,12 +57,34 @@ COLORS = {
 
 # Page Configurations
 PAGES = {
-    "dashboard": {"name": "Dashboard", "icon": "dashboard.png"},
-    "sales": {"name": "Sales", "icon": "sales.png"},
-    "expenses": {"name": "Expenses", "icon": "expenses.png"},
-    "bar_stock": {"name": "Bar Stock", "icon": "stock.png"},
-    "staff": {"name": "Staff", "icon": "staff.png"},
-    "menu": {"name": "Menu", "icon": "menu.png"}
+    "dashboard": {
+        "name": "Dashboard",
+        "class": "DashboardPage"
+    },
+    "analytics": {
+        "name": "Analytics",
+        "class": "AnalyticsPage"
+    },
+    "sales": {
+        "name": "Sales",
+        "class": "SalesPage"
+    },
+    "expenses": {
+        "name": "Expenses",
+        "class": "ExpensesPage"
+    },
+    "bar_stock": {
+        "name": "Bar Stock",
+        "class": "BarStockPage"
+    },
+    "staff": {
+        "name": "Staff",
+        "class": "StaffPage"
+    },
+    "menu": {
+        "name": "Menu",
+        "class": "MenuPage"
+    }
 }
 
 # Database Configuration
