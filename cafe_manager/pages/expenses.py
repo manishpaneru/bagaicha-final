@@ -55,6 +55,11 @@ class AddExpenseDialog(ctk.CTkToplevel):
         self.name_entry = ctk.CTkEntry(main_frame, width=300)
         self.name_entry.pack(pady=(0, 10))
         
+        # Title Field
+        ctk.CTkLabel(main_frame, text="Title/Description:").pack(anchor="w", pady=(10, 0))
+        self.title_entry = ctk.CTkEntry(main_frame, width=300)
+        self.title_entry.pack(pady=(0, 10))
+        
         # Category Selection
         ctk.CTkLabel(main_frame, text="Category:").pack(anchor="w", pady=(10, 0))
         categories = ['Management', 'Miscellaneous', 'Bar', 'Kitchen']
@@ -63,7 +68,7 @@ class AddExpenseDialog(ctk.CTkToplevel):
             variable=self.category_var,
             values=categories,
             width=300,
-            command=self.on_category_change  # Now this method exists
+            command=self.on_category_change
         )
         self.category_menu.pack(pady=(0, 10))
         
@@ -141,9 +146,13 @@ class AddExpenseDialog(ctk.CTkToplevel):
                 messagebox.showerror("Error", "Please enter valid numbers")
                 return
             
-            if not all([name, title, category, quantity > 0, price > 0]):
-                messagebox.showerror("Error", "Please fill all fields")
+            if not all([name, category, quantity > 0, price > 0]):
+                messagebox.showerror("Error", "Please fill all required fields")
                 return
+            
+            # If title is empty, use name as title
+            if not title:
+                title = name
             
             conn = self.parent.db.connect()
             cursor = conn.cursor()
@@ -158,47 +167,13 @@ class AddExpenseDialog(ctk.CTkToplevel):
                         name, title, category,
                         quantity, price_per_unit,
                         total_price, expense_date
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, DATE('now', 'localtime'))
                 """, (
                     name, title, category,
                     quantity, price,
-                    quantity * price,
-                    self.date_entry.get_date()
+                    quantity * price
                 ))
-                
-                # If it's a bar expense, update stock
-                if category == "Bar":
-                    # Get unit type from input or dialog
-                    unit_type = self.unit_type_var.get()  # Add this to dialog
-                    
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO bar_stock (
-                            item_name, unit_type, pieces_per_packet,
-                            quantity, original_quantity, min_threshold
-                        ) VALUES (
-                            ?, ?, ?, 
-                            COALESCE((SELECT quantity FROM bar_stock WHERE item_name = ?) + ?, ?),
-                            ?, ?
-                        )
-                    """, (
-                        name, unit_type,
-                        20 if unit_type == "PACKET" else None,
-                        name, quantity, quantity,
-                        quantity, quantity * 0.2  # Default threshold 20% of original
-                    ))
-                    
-                    # Get the bar_stock id
-                    cursor.execute("SELECT id FROM bar_stock WHERE item_name = ?", (name,))
-                    bar_id = cursor.fetchone()[0]
-                    
-                    # Record in history
-                    cursor.execute("""
-                        INSERT INTO stock_history (
-                            item_id, change_quantity,
-                            operation_type, source
-                        ) VALUES (?, ?, 'add', 'expense')
-                    """, (bar_id, quantity))
-                
+
                 conn.commit()
                 messagebox.showinfo("Success", "Expense saved successfully")
                 
@@ -409,7 +384,7 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
         
         # Window setup
         self.title("Add Cigarette Expense")
-        self.geometry("400x500")
+        self.geometry("400x600")
         self.resizable(False, False)
         
         # Initialize variables
@@ -419,18 +394,23 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
         self.center_window()
     
     def setup_ui(self):
+        # Main container
         main_frame = ctk.CTkFrame(self)
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
+        # Content Frame
+        content_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        content_frame.pack(fill="both", expand=True)
+        
         # Title
         ctk.CTkLabel(
-            main_frame,
+            content_frame,
             text="Add Cigarette Stock",
             font=("Helvetica", 20, "bold")
         ).pack(pady=(0, 20))
         
         # Cigarette Selection
-        ctk.CTkLabel(main_frame, text="Select Cigarette:").pack(anchor="w", pady=(10,0))
+        ctk.CTkLabel(content_frame, text="Select Cigarette:").pack(anchor="w", pady=(10,0))
         
         # Get available cigarettes from menu_items
         try:
@@ -461,7 +441,7 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
         cigarette_options = [f"{name} (₹{price}/piece)" for name, price in self.cigarettes]
         if cigarette_options:
             self.cigarette_dropdown = ctk.CTkOptionMenu(
-                main_frame,
+                content_frame,
                 values=cigarette_options,
                 width=300,
                 command=self.on_cigarette_select
@@ -473,55 +453,106 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
             self.cigarette_var.set(self.cigarettes[0][0])  # Store the actual name
         else:
             ctk.CTkLabel(
-                main_frame,
+                content_frame,
                 text="No cigarette items found in database.\nPlease check initialization.",
                 text_color="red"
             ).pack(pady=(5, 15))
         
         # Quantity (Packets)
-        ctk.CTkLabel(main_frame, text="Number of Packets:").pack(anchor="w", pady=(20,0))
-        self.quantity_entry = ctk.CTkEntry(main_frame, width=300)
+        ctk.CTkLabel(content_frame, text="Number of Packets:").pack(anchor="w", pady=(20,0))
+        self.quantity_entry = ctk.CTkEntry(content_frame, width=300)
         self.quantity_entry.pack(pady=(5,15))
+        self.quantity_entry.bind('<KeyRelease>', self.calculate_total)
         
-        # Cost
-        ctk.CTkLabel(main_frame, text="Total Cost:").pack(anchor="w", pady=(10,0))
-        self.cost_entry = ctk.CTkEntry(main_frame, width=300)
-        self.cost_entry.pack(pady=(5,15))
+        # Add/Remove Buttons Frame
+        quantity_buttons_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        quantity_buttons_frame.pack(fill="x", pady=(0, 10))
         
+        # Add Button
+        ctk.CTkButton(
+            quantity_buttons_frame,
+            text="+",
+            width=40,
+            command=self.increment_quantity,
+            fg_color="#10B981",
+            hover_color="#059669"
+        ).pack(side="left", padx=5)
+        
+        # Remove Button
+        ctk.CTkButton(
+            quantity_buttons_frame,
+            text="-",
+            width=40,
+            command=self.decrement_quantity,
+            fg_color="#EF4444",
+            hover_color="#DC2626"
+        ).pack(side="left", padx=5)
+        
+        # Price per Unit
+        ctk.CTkLabel(content_frame, text="Price per Packet:").pack(anchor="w", pady=(10,0))
+        self.price_entry = ctk.CTkEntry(content_frame, width=300)
+        self.price_entry.pack(pady=(5,15))
+        self.price_entry.bind('<KeyRelease>', self.calculate_total)
+
+        # Total Cost Display
+        ctk.CTkLabel(content_frame, text="Total Cost:").pack(anchor="w", pady=(10,0))
+        self.total_label = ctk.CTkLabel(
+            content_frame,
+            text="₹0.00",
+            font=("Helvetica", 16, "bold")
+        )
+        self.total_label.pack(pady=(5,15))
+
         # Info label
         ctk.CTkLabel(
-            main_frame,
+            content_frame,
             text="1 packet = 20 pieces",
             text_color="gray"
         ).pack(pady=(0,20))
         
-        # Buttons
-        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        buttons_frame.pack(fill="x", pady=20)
+        # Bottom Buttons Frame
+        bottom_frame = ctk.CTkFrame(main_frame, fg_color="transparent", height=50)
+        bottom_frame.pack(fill="x", side="bottom", pady=(20,0))
+        bottom_frame.pack_propagate(False)  # Prevent frame from shrinking
         
+        # Cancel Button
         ctk.CTkButton(
-            buttons_frame,
-            text="Save",
-            command=self.save_expense,
-            width=140,
-            fg_color="#10B981",
-            hover_color="#059669"
-        ).pack(side="left", padx=10, expand=True)
-        
-        ctk.CTkButton(
-            buttons_frame,
+            bottom_frame,
             text="Cancel",
             command=self.destroy,
-            width=140,
+            width=150,
+            height=40,
             fg_color="#EF4444",
-            hover_color="#DC2626"
-        ).pack(side="right", padx=10, expand=True)
+            hover_color="#DC2626",
+            font=("Helvetica", 13, "bold")
+        ).pack(side="right", padx=10)
+        
+        # Save Button
+        ctk.CTkButton(
+            bottom_frame,
+            text="Save",
+            command=self.save_expense,
+            width=150,
+            height=40,
+            fg_color="#10B981",
+            hover_color="#059669",
+            font=("Helvetica", 13, "bold")
+        ).pack(side="right", padx=10)
     
     def on_cigarette_select(self, choice):
         # Extract cigarette name from the selection (remove price part)
         name = choice.split(" (")[0]
         self.cigarette_var.set(name)
         
+    def calculate_total(self, event=None):
+        try:
+            quantity = int(self.quantity_entry.get() or 0)
+            price_per_unit = float(self.price_entry.get() or 0)
+            total = quantity * price_per_unit
+            self.total_label.configure(text=f"₹{total:,.2f}")
+        except ValueError:
+            self.total_label.configure(text="₹0.00")
+    
     def save_expense(self):
         try:
             name = self.cigarette_var.get()
@@ -531,9 +562,10 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
                 
             try:
                 packets = int(self.quantity_entry.get())
-                cost = float(self.cost_entry.get())
-                if packets <= 0 or cost <= 0:
+                price_per_packet = float(self.price_entry.get())
+                if packets <= 0 or price_per_packet <= 0:
                     raise ValueError()
+                total_cost = packets * price_per_packet
             except ValueError:
                 messagebox.showerror("Error", "Please enter valid numbers")
                 return
@@ -557,7 +589,6 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
                     raise Exception("Cigarette price not found")
                 
                 price_per_piece = result[0]
-                price_per_packet = price_per_piece * 20  # Each packet has 20 pieces
                 
                 # Check if cigarette exists in stock
                 cursor.execute("""
@@ -605,8 +636,8 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
                     f"{name} ({packets} packets - {packets * 20} pieces)",
                     "Cigarette",
                     packets,         # Store actual number of packets
-                    price_per_packet,    # Price per packet (20 pieces)
-                    cost
+                    price_per_packet,    # Price per packet
+                    total_cost
                 ))
                 
                 # Record in history
@@ -622,7 +653,7 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
                     "Success", 
                     f"Added {packets} packets ({packets * 20} pieces)\n" +
                     f"Price per packet: ₹{price_per_packet:.2f}\n" +
-                    f"Total cost: ₹{cost:.2f}"
+                    f"Total cost: ₹{total_cost:.2f}"
                 )
                 
                 if hasattr(self.parent, 'load_expenses'):
@@ -647,6 +678,29 @@ class AddCigaretteExpenseDialog(ctk.CTkToplevel):
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'+{x}+{y}')
+
+    def increment_quantity(self):
+        try:
+            current = int(self.quantity_entry.get() or 0)
+            self.quantity_entry.delete(0, 'end')
+            self.quantity_entry.insert(0, str(current + 1))
+            self.calculate_total()
+        except ValueError:
+            self.quantity_entry.delete(0, 'end')
+            self.quantity_entry.insert(0, "1")
+            self.calculate_total()
+
+    def decrement_quantity(self):
+        try:
+            current = int(self.quantity_entry.get() or 0)
+            if current > 0:
+                self.quantity_entry.delete(0, 'end')
+                self.quantity_entry.insert(0, str(current - 1))
+                self.calculate_total()
+        except ValueError:
+            self.quantity_entry.delete(0, 'end')
+            self.quantity_entry.insert(0, "0")
+            self.calculate_total()
 
 class ExpensesPage(ctk.CTkFrame):
     """Expenses page showing expense tracking and management."""

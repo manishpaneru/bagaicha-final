@@ -17,6 +17,7 @@ import os
 
 # Import pages
 from pages.dashboard import DashboardPage
+from pages.analytics import AnalyticsPage
 from pages.sales import SalesPage
 from pages.expenses import ExpensesPage
 from pages.bar_stock import BarStockPage
@@ -249,49 +250,39 @@ class CafeManager(ctk.CTk):
         )
 
     def switch_page(self, page_id):
-        """Switch to the specified page.
-        
-        Args:
-            page_id: ID of the page to switch to
-        """
+        """Switch to the specified page."""
         try:
-            # Update button states
-            for btn_id, btn in self.nav_buttons.items():
-                if btn_id == page_id:
-                    btn.configure(fg_color=COLORS["background"], text_color=COLORS["text"]["primary"])
-                else:
-                    btn.configure(fg_color="transparent", text_color=COLORS["text"]["secondary"])
-            
-            # Update page title
-            self.page_title.configure(text=PAGES[page_id]["name"])
-            
             # Clear current page
             if self.current_page:
                 self.current_page.destroy()
             
+            # Update navigation buttons
+            for btn_id, btn in self.nav_buttons.items():
+                if btn_id == page_id:
+                    btn.configure(fg_color=COLORS["primary"])
+                else:
+                    btn.configure(fg_color="transparent")
+            
+            # Update page title
+            self.page_title.configure(text=PAGES[page_id]["name"])
+            
             # Create new page
             if page_id == "dashboard":
                 self.current_page = DashboardPage(self.main_frame)
+            elif page_id == "analytics":
+                self.current_page = AnalyticsPage(self.main_frame)
             elif page_id == "sales":
                 self.current_page = SalesPage(self.main_frame)
-            elif page_id == "menu":
-                self.current_page = MenuPage(self.main_frame)
             elif page_id == "expenses":
                 self.current_page = ExpensesPage(self.main_frame)
             elif page_id == "bar_stock":
                 self.current_page = BarStockPage(self.main_frame)
             elif page_id == "staff":
                 self.current_page = StaffPage(self.main_frame)
-            else:
-                # Placeholder for other pages
-                self.current_page = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-                ctk.CTkLabel(
-                    self.current_page,
-                    text=f"{PAGES[page_id]['name']} Page\nUnder Construction",
-                    font=FONTS["heading"],
-                    text_color=COLORS["text"]["primary"]
-                ).pack(expand=True)
+            elif page_id == "menu":
+                self.current_page = MenuPage(self.main_frame)
             
+            # Display new page
             self.current_page.grid(row=0, column=0, sticky="nsew")
             
         except Exception as e:
